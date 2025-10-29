@@ -1,8 +1,10 @@
 package cc.techox.boardgame.controller;
 
+import cc.techox.boardgame.model.Match;
 import cc.techox.boardgame.model.User;
 import cc.techox.boardgame.service.AuthService;
 import cc.techox.boardgame.service.UnoService;
+import cc.techox.boardgame.websocket.GameEventPublisher;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,10 +15,12 @@ import java.util.Map;
 public class UnoController {
     private final UnoService unoService;
     private final AuthService authService;
+    private final GameEventPublisher eventPublisher;
 
-    public UnoController(UnoService unoService, AuthService authService) {
+    public UnoController(UnoService unoService, AuthService authService, GameEventPublisher eventPublisher) {
         this.unoService = unoService;
         this.authService = authService;
+        this.eventPublisher = eventPublisher;
     }
 
     private User authed(String authHeader) {
@@ -28,7 +32,12 @@ public class UnoController {
     @PostMapping("/rooms/{roomId}/start")
     public ResponseEntity<?> start(@PathVariable long roomId, @RequestHeader(value = "Authorization", required = false) String auth) {
         User u = authed(auth);
-        return ResponseEntity.ok(unoService.startInRoom(roomId, u));
+        Match match = unoService.startInRoom(roomId, u);
+        
+        // 发布游戏开始事件，触发WebSocket推送
+        eventPublisher.publishGameStarted(roomId, match.getId());
+        
+        return ResponseEntity.ok(unoService.view(match.getId(), u.getId()));
     }
 
     @GetMapping("/matches/{id}")

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket 测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .message-log { height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 10px 15px; }
+        input, textarea { margin: 5px; padding: 5px; }
+        .message { margin: 5px 0; padding: 5px; border-left: 3px solid #007bff; }
+        .error { border-left-color: #dc3545; }
+        .success { border-left-color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WebSocket 连接测试</h1>
+        
+        <div id="status" class="status disconnected">未连接</div>
+        
+        <div class="controls">
+            <button onclick="connect()">连接</button>
+            <button onclick="disconnect()">断开</button>
+            <button onclick="clearLog()">清空日志</button>
+        </div>
+        
+        <div class="controls">
+            <h3>认证测试</h3>
+            <input type="text" id="tokenInput" placeholder="输入Bearer Token" style="width: 300px;">
+            <button onclick="authenticate()">认证</button>
+        </div>
+        
+        <div class="controls">
+            <h3>房间测试</h3>
+            <input type="number" id="roomIdInput" placeholder="房间ID" value="1">
+            <button onclick="joinRoom()">加入房间</button>
+            <button onclick="leaveRoom()">离开房间</button>
+        </div>
+        
+        <div class="controls">
+            <h3>游戏测试</h3>
+            <input type="number" id="matchIdInput" placeholder="对局ID" value="1">
+            <input type="text" id="cardInput" placeholder="卡牌" value="R-5">
+            <input type="text" id="colorInput" placeholder="颜色(可选)" value="">
+            <button onclick="playCard()">出牌</button>
+            <button onclick="drawCard()">摸牌</button>
+        </div>
+        
+        <div class="controls">
+            <h3>其他测试</h3>
+            <button onclick="ping()">发送心跳</button>
+            <button onclick="syncState()">同步状态</button>
+        </div>
+        
+        <div class="controls">
+            <h3>自定义消息</h3>
+            <textarea id="customMessage" rows="3" cols="50" placeholder='{"type":"ping","data":{}}'></textarea>
+            <button onclick="sendCustomMessage()">发送</button>
+        </div>
+        
+        <div id="messageLog" class="message-log"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        let messageCount = 0;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('messageLog');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+            logDiv.appendChild(messageDiv);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            messageCount++;
+        }
+
+        function updateStatus(connected) {
+            const statusDiv = document.getElementById('status');
+            if (connected) {
+                statusDiv.textContent = '已连接';
+                statusDiv.className = 'status connected';
+            } else {
+                statusDiv.textContent = '未连接';
+                statusDiv.className = 'status disconnected';
+            }
+        }
+
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                log('WebSocket已经连接', 'error');
+                return;
+            }
+
+            try {
+                ws = new WebSocket('ws://localhost:50001/ws');
+                
+                ws.onopen = function(event) {
+                    log('WebSocket连接成功', 'success');
+                    updateStatus(true);
+                };
+
+                ws.onmessage = function(event) {
+                    try {
+                        const message = JSON.parse(event.data);
+                        log(`收到消息: ${JSON.stringify(message, null, 2)}`, 'success');
+                    } catch (e) {
+                        log(`收到原始消息: ${event.data}`, 'success');
+                    }
+                };
+
+                ws.onclose = function(event) {
+                    log(`WebSocket连接关闭: ${event.code} - ${event.reason}`, 'error');
+                    updateStatus(false);
+                };
+
+                ws.onerror = function(error) {
+                    log(`WebSocket错误: ${error}`, 'error');
+                    updateStatus(false);
+                };
+
+            } catch (error) {
+                log(`连接失败: ${error.message}`, 'error');
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+                updateStatus(false);
+                log('主动断开连接', 'info');
+            }
+        }
+
+        function sendMessage(message) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('WebSocket未连接', 'error');
+                return;
+            }
+
+            try {
+                const messageWithId = {
+                    ...message,
+                    timestamp: new Date().toISOString(),
+                    messageId: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                };
+                
+                ws.send(JSON.stringify(messageWithId));
+                log(`发送消息: ${JSON.stringify(messageWithId, null, 2)}`, 'info');
+            } catch (error) {
+                log(`发送失败: ${error.message}`, 'error');
+            }
+        }
+
+        function authenticate() {
+            const token = document.getElementById('tokenInput').value;
+            if (!token) {
+                log('请输入Token', 'error');
+                return;
+            }
+            
+            sendMessage({
+                type: 'auth',
+                data: { token: token }
+            });
+        }
+
+        function joinRoom() {
+            const roomId = parseInt(document.getElementById('roomIdInput').value);
+            if (!roomId) {
+                log('请输入房间ID', 'error');
+                return;
+            }
+            
+            sendMessage({
+                type: 'join_room',
+                data: { roomId: roomId }
+            });
+        }
+
+        function leaveRoom() {
+            const roomId = parseInt(document.getElementById('roomIdInput').value);
+            if (!roomId) {
+                log('请输入房间ID', 'error');
+                return;
+            }
+            
+            sendMessage({
+                type: 'leave_room',
+                data: { roomId: roomId }
+            });
+        }
+
+        function playCard() {
+            const matchId = parseInt(document.getElementById('matchIdInput').value);
+            const card = document.getElementById('cardInput').value;
+            const color = document.getElementById('colorInput').value;
+            
+            if (!matchId || !card) {
+                log('请输入对局ID和卡牌', 'error');
+                return;
+            }
+            
+            const data = { matchId: matchId, card: card };
+            if (color) {
+                data.chosenColor = color;
+            }
+            
+            sendMessage({
+                type: 'play_card',
+                data: data
+            });
+        }
+
+        function drawCard() {
+            const matchId = parseInt(document.getElementById('matchIdInput').value);
+            if (!matchId) {
+                log('请输入对局ID', 'error');
+                return;
+            }
+            
+            sendMessage({
+                type: 'draw_card',
+                data: { matchId: matchId }
+            });
+        }
+
+        function ping() {
+            sendMessage({
+                type: 'ping',
+                data: {}
+            });
+        }
+
+        function syncState() {
+            sendMessage({
+                type: 'sync_state',
+                data: {
+                    lastMessageId: `msg_${Date.now()}`,
+                    roomId: parseInt(document.getElementById('roomIdInput').value) || null,
+                    matchId: parseInt(document.getElementById('matchIdInput').value) || null
+                }
+            });
+        }
+
+        function sendCustomMessage() {
+            const customText = document.getElementById('customMessage').value;
+            if (!customText) {
+                log('请输入自定义消息', 'error');
+                return;
+            }
+            
+            try {
+                const customMessage = JSON.parse(customText);
+                sendMessage(customMessage);
+            } catch (error) {
+                log(`JSON解析失败: ${error.message}`, 'error');
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('messageLog').innerHTML = '';
+            messageCount = 0;
+            log('日志已清空', 'info');
+        }
+
+        // 页面加载完成后的初始化
+        window.onload = function() {
+            log('WebSocket测试页面已加载', 'info');
+            log('请先点击"连接"按钮建立WebSocket连接', 'info');
+        };
+    </script>
+</body>
+</html>
