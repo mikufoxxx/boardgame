@@ -3,6 +3,7 @@ package cc.techox.boardgame.controller;
 import cc.techox.boardgame.common.ApiResponse;
 import cc.techox.boardgame.dto.LoginRequest;
 import cc.techox.boardgame.dto.RegisterRequest;
+import cc.techox.boardgame.dto.UpdateProfileRequest;
 import cc.techox.boardgame.model.User;
 import cc.techox.boardgame.service.AuthService;
 import org.springframework.web.bind.annotation.*;
@@ -21,7 +22,7 @@ public class AuthController {
     @PostMapping("/register")
     public ApiResponse<?> register(@RequestBody RegisterRequest req) {
         try {
-            User u = authService.register(req.getUsername(), req.getPassword(), req.getInviteCode());
+            User u = authService.register(req.getUsername(), req.getPassword(), req.getInviteCode(), req.getDisplayName());
             return ApiResponse.ok("注册成功", new UserInfo(u));
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(e.getMessage());
@@ -45,6 +46,23 @@ public class AuthController {
         if (token == null) return ApiResponse.error("未提供令牌");
         authService.logout(token);
         return ApiResponse.ok("注销成功", null);
+    }
+
+    @PutMapping("/profile")
+    public ApiResponse<?> updateProfile(@RequestHeader(name = "Authorization", required = false) String authHeader,
+                                        @RequestBody UpdateProfileRequest req) {
+        String token = parseBearer(authHeader);
+        if (token == null) return ApiResponse.error("未提供令牌");
+        
+        User user = authService.getUserByToken(token).orElse(null);
+        if (user == null) return ApiResponse.error("未登录或令牌无效");
+        
+        try {
+            User updatedUser = authService.updateProfile(user, req.getDisplayName(), req.getCurrentPassword(), req.getNewPassword());
+            return ApiResponse.ok("修改成功", new UserInfo(updatedUser));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        }
     }
 
     private String parseBearer(String h) {
