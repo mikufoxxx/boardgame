@@ -1,10 +1,11 @@
-# Boardgame 后端 API 文档（23 个接口 + WS 说明）
+# Boardgame 后端 API 文档（24 个接口 + WS 说明）
 
 - 统一返回：除 UNO 专属接口外，均返回 `ApiResponse`
   - 格式：`{"success":boolean, "message":string, "data":any}`
 - 鉴权：需要登录的接口在请求头携带 `Authorization: Bearer {session_token}`
 - UNO 专属接口：返回原始 JSON（非 `ApiResponse`）
 - CORS：通过 `cors.allowed-origins` 配置允许来源；本地开发使用 `dev` profile
+- 编码：全面支持 UTF-8，中文昵称和消息正常显示
 
 ---
 
@@ -16,22 +17,23 @@
 ## 认证（4）
 - POST `/api/register`
   - req: `{ "username": string, "password": string, "inviteCode": string, "displayName"?: string }`
-  - resp.data: `{ "id": number, "username": string, "displayName": string }`
+  - resp.data: `{ "id": number, "username": string, "displayName": string, "role": string }`
   - 成功消息：`注册成功`
-  - 说明：`displayName` 可选，未提供时使用 `username` 作为昵称
+  - 说明：`displayName` 可选，未提供时使用 `username` 作为昵称；支持中文昵称
 - POST `/api/login`
   - req: `{ "username": string, "password": string }`
-  - resp.data: `{ "session_token": string, "user": { "id": number, "username": string, "displayName": string } }`
+  - resp.data: `{ "session_token": string, "user": { "id": number, "username": string, "displayName": string, "role": string } }`
   - 成功消息：`登录成功`
+  - 说明：`role` 为 `"admin"` 或 `"user"`，用于前端权限判断
 - POST `/api/logout`
   - header: `Authorization: Bearer {token}`
   - resp: `{"success":true,"message":"注销成功","data":null}`
 - PUT `/api/profile`
   - header: `Authorization: Bearer {token}`
   - req: `{ "displayName"?: string, "currentPassword"?: string, "newPassword"?: string }`
-  - resp.data: `{ "id": number, "username": string, "displayName": string }`
+  - resp.data: `{ "id": number, "username": string, "displayName": string, "role": string }`
   - 成功消息：`修改成功`
-  - 说明：修改密码时 `currentPassword` 和 `newPassword` 必须同时提供
+  - 说明：修改密码时 `currentPassword` 和 `newPassword` 必须同时提供；昵称支持中文
 
 ## 游戏目录（1）
 - GET `/api/games`
@@ -60,12 +62,19 @@
   - req: `{ "ready": boolean }`
   - resp: `{"success":true,"message":"状态已更新","data":null}`
 
-## 管理员（8）
+## 管理员（9）
 - POST `/api/admin/invite-codes`
   - header: `Authorization: Bearer {admin-token}`
   - req: `{ "count": number (1-500), "batchNo"?: string, "expiresDays"?: number }`
   - resp.data: `{ "batchNo": string, "codes": string[], "expiresAt": string|null }`
   - 成功消息：`生成成功`
+- GET `/api/admin/invite-codes`
+  - header: `Authorization: Bearer {admin-token}`
+  - query: `page`（默认1）, `size`（默认20，最大200）, `status`（可选：`used`/`unused`）, `batchNo`（可选：批次号模糊搜索）
+  - resp.data: `{ "page": number, "size": number, "total": number, "items": [InviteCodeInfo] }`
+    - `InviteCodeInfo`：`{ id, code, used, usedBy, usedAt, createdBy, createdAt, expiresAt, batchNo, expired }`
+  - 成功消息：`ok`
+  - 说明：支持按使用状态和批次号筛选，按创建时间倒序排列
 - GET `/api/admin/users`
   - header: `Authorization: Bearer {admin-token}`
   - query: `page`（默认1）, `size`（默认20，最大200）
@@ -151,7 +160,11 @@
 ## 示例（简）
 - 登录成功：
 ```json
-{"success":true,"message":"登录成功","data":{"session_token":"...","user":{"id":1,"username":"alice","displayName":"Alice"}}}
+{"success":true,"message":"登录成功","data":{"session_token":"...","user":{"id":1,"username":"alice","displayName":"Alice","role":"user"}}}
+```
+- 管理员登录：
+```json
+{"success":true,"message":"登录成功","data":{"session_token":"...","user":{"id":2,"username":"admin","displayName":"管理员","role":"admin"}}}
 ```
 - 创建房间成功：
 ```json

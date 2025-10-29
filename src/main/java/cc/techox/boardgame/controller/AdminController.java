@@ -137,6 +137,46 @@ public class AdminController {
         return ApiResponse.ok("生成成功", resp);
     }
 
+    // 查询邀请码列表
+    @GetMapping("/invite-codes")
+    public ApiResponse<?> listInviteCodes(@RequestHeader(name = "Authorization", required = false) String authHeader,
+                                          @RequestParam(name = "page", defaultValue = "1") int page,
+                                          @RequestParam(name = "size", defaultValue = "20") int size,
+                                          @RequestParam(name = "status", required = false) String status,
+                                          @RequestParam(name = "batchNo", required = false) String batchNo) {
+        User admin = requireAdmin(authHeader).orElse(null);
+        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        
+        size = Math.min(size, 200);
+        Pageable pageable = PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        
+        Page<InviteCode> invitePage;
+        
+        // 根据状态和批次号筛选
+        if (status != null && batchNo != null) {
+            boolean isUsed = "used".equalsIgnoreCase(status);
+            invitePage = inviteRepo.findByUsedAndBatchNoContainingIgnoreCase(isUsed, batchNo, pageable);
+        } else if (status != null) {
+            boolean isUsed = "used".equalsIgnoreCase(status);
+            invitePage = inviteRepo.findByUsed(isUsed, pageable);
+        } else if (batchNo != null) {
+            invitePage = inviteRepo.findByBatchNoContainingIgnoreCase(batchNo, pageable);
+        } else {
+            invitePage = inviteRepo.findAll(pageable);
+        }
+        
+        List<InviteCodeInfo> items = invitePage.getContent().stream()
+                .map(InviteCodeInfo::new)
+                .toList();
+        
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("page", page);
+        resp.put("size", size);
+        resp.put("total", invitePage.getTotalElements());
+        resp.put("items", items);
+        return ApiResponse.ok("ok", resp);
+    }
+
     private static final char[] CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".toCharArray();
     private String randomCode() {
         Random r = new Random();
@@ -320,6 +360,32 @@ public class AdminController {
             this.targetId = l.getTargetId();
             this.detail = l.getDetail();
             this.createdAt = l.getCreatedAt() == null ? null : l.getCreatedAt().toString();
+        }
+    }
+
+    static class InviteCodeInfo {
+        public Long id;
+        public String code;
+        public boolean used;
+        public String usedBy;
+        public String usedAt;
+        public String createdBy;
+        public String createdAt;
+        public String expiresAt;
+        public String batchNo;
+        public boolean expired;
+        
+        public InviteCodeInfo(InviteCode ic) {
+            this.id = ic.getId();
+            this.code = ic.getCode();
+            this.used = ic.isUsed();
+            this.usedBy = ic.getUsedBy() == null ? null : ic.getUsedBy().getUsername();
+            this.usedAt = ic.getUsedAt() == null ? null : ic.getUsedAt().toString();
+            this.createdBy = ic.getCreatedBy() == null ? null : ic.getCreatedBy().getUsername();
+            this.createdAt = ic.getCreatedAt() == null ? null : ic.getCreatedAt().toString();
+            this.expiresAt = ic.getExpiresAt() == null ? null : ic.getExpiresAt().toString();
+            this.batchNo = ic.getBatchNo();
+            this.expired = ic.getExpiresAt() != null && ic.getExpiresAt().isBefore(LocalDateTime.now());
         }
     }
 }

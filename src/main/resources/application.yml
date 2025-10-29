@@ -1,5 +1,10 @@
 server:
   port: 50000
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
 spring:
   datasource:
     url: jdbc:mysql://152.53.165.99:3306/boardgame?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false
@@ -11,7 +16,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
-        format_sql: false
+        '[format_sql]': false
   flyway:
     enabled: false
 cors:

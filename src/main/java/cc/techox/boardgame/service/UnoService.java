@@ -7,7 +7,6 @@ import cc.techox.boardgame.model.Match;
 import cc.techox.boardgame.model.Room;
 import cc.techox.boardgame.model.RoomPlayer;
 import cc.techox.boardgame.model.User;
-import cc.techox.boardgame.repo.GameRepository;
 import cc.techox.boardgame.repo.MatchRepository;
 import cc.techox.boardgame.repo.RoomPlayerRepository;
 import cc.techox.boardgame.repo.RoomRepository;
@@ -19,20 +18,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @Service
 public class UnoService {
     private final RoomRepository roomRepo;
     private final RoomPlayerRepository roomPlayerRepo;
-    private final GameRepository gameRepo;
     private final MatchRepository matchRepo;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public UnoService(RoomRepository roomRepo, RoomPlayerRepository roomPlayerRepo, GameRepository gameRepo, MatchRepository matchRepo) {
+    public UnoService(RoomRepository roomRepo, RoomPlayerRepository roomPlayerRepo, MatchRepository matchRepo) {
         this.roomRepo = roomRepo;
         this.roomPlayerRepo = roomPlayerRepo;
-        this.gameRepo = gameRepo;
         this.matchRepo = matchRepo;
     }
 

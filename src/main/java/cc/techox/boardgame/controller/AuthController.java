@@ -75,10 +75,12 @@ public class AuthController {
         public Long id;
         public String username;
         public String displayName;
+        public String role;
         public UserInfo(User u) {
             this.id = u.getId();
             this.username = u.getUsername();
             this.displayName = u.getDisplayName();
+            this.role = u.getRole().name();
         }
     }
 
