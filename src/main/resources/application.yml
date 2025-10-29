@@ -1,0 +1,18 @@
+server:
+  port: 50000
+spring:
+  datasource:
+    url: jdbc:mysql://152.53.165.99:3306/boardgame?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false
+    username: BoardGame
+    password: Specialfox233
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        format_sql: false
+  flyway:
+    enabled: false
+cors:
+  allowed-origins: "http://boardgame.techox.cc,https://boardgame.techox.cc"

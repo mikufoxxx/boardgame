@@ -1,0 +1,4 @@
+server:
+  port: 50000
+cors:
+  allowed-origins: "http://boardgame.techox.cc,https://boardgame.techox.cc"
