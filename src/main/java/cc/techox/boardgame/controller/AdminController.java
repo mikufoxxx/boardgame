@@ -5,13 +5,8 @@ import cc.techox.boardgame.dto.CreateInviteCodesRequest;
 import cc.techox.boardgame.dto.CreateUserRequest;
 import cc.techox.boardgame.dto.UpdateUserPasswordRequest;
 import cc.techox.boardgame.dto.UpdateUserRoleRequest;
-import cc.techox.boardgame.model.AdminAuditLog;
-import cc.techox.boardgame.model.InviteCode;
-import cc.techox.boardgame.model.User;
-import cc.techox.boardgame.repo.AdminAuditLogRepository;
-import cc.techox.boardgame.repo.AuthSessionRepository;
-import cc.techox.boardgame.repo.InviteCodeRepository;
-import cc.techox.boardgame.repo.UserRepository;
+import cc.techox.boardgame.model.*;
+import cc.techox.boardgame.repo.*;
 import cc.techox.boardgame.service.AuthService;
 import cc.techox.boardgame.service.RoomService;
 import cc.techox.boardgame.util.HashUtil;
@@ -34,19 +29,25 @@ public class AdminController {
     private final AdminAuditLogRepository auditRepo;
     private final AuthSessionRepository sessionRepo;
     private final RoomService roomService;
+    private final RoomRepository roomRepo;
+    private final GameRepository gameRepo;
 
     public AdminController(AuthService authService,
                            UserRepository userRepo,
                            InviteCodeRepository inviteRepo,
                            AdminAuditLogRepository auditRepo,
                            AuthSessionRepository sessionRepo,
-                           RoomService roomService) {
+                           RoomService roomService,
+                           RoomRepository roomRepo,
+                           GameRepository gameRepo) {
         this.authService = authService;
         this.userRepo = userRepo;
         this.inviteRepo = inviteRepo;
         this.auditRepo = auditRepo;
         this.sessionRepo = sessionRepo;
         this.roomService = roomService;
+        this.roomRepo = roomRepo;
+        this.gameRepo = gameRepo;
     }
 
     // 引导：若无管理员，创建默认管理员 SpecialFox
@@ -177,6 +178,57 @@ public class AdminController {
         return ApiResponse.ok("ok", resp);
     }
 
+    // 管理员邀请码统计
+    @GetMapping("/invite-codes/stats")
+    public ApiResponse<?> getInviteCodeStats(@RequestHeader(name = "Authorization", required = false) String authHeader) {
+        User admin = requireAdmin(authHeader).orElse(null);
+        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        
+        Map<String, Object> stats = new HashMap<>();
+        
+        // 按使用状态统计
+        Object[][] usedStats = inviteRepo.countByUsedStatus();
+        Map<String, Long> usedCount = new HashMap<>();
+        for (Object[] row : usedStats) {
+            String status = (Boolean) row[0] ? "used" : "unused";
+            usedCount.put(status, (Long) row[1]);
+        }
+        stats.put("byUsedStatus", usedCount);
+        
+        // 按批次统计
+        Object[][] batchStats = inviteRepo.countByBatchNo();
+        Map<String, Long> batchCount = new HashMap<>();
+        for (Object[] row : batchStats) {
+            batchCount.put((String) row[0], (Long) row[1]);
+        }
+        stats.put("byBatchNo", batchCount);
+        
+        // 按批次和使用状态统计
+        Object[][] batchUsedStats = inviteRepo.countByBatchNoAndUsedStatus();
+        Map<String, Map<String, Long>> batchUsedCount = new HashMap<>();
+        for (Object[] row : batchUsedStats) {
+            String batchNo = (String) row[0];
+            String status = (Boolean) row[1] ? "used" : "unused";
+            Long count = (Long) row[2];
+            
+            batchUsedCount.computeIfAbsent(batchNo, k -> new HashMap<>()).put(status, count);
+        }
+        stats.put("byBatchNoAndUsedStatus", batchUsedCount);
+        
+        // 总数统计
+        long totalCodes = inviteRepo.count();
+        long usedCodes = inviteRepo.countByUsed(true);
+        long unusedCodes = inviteRepo.countByUsed(false);
+        
+        Map<String, Long> totalStats = new HashMap<>();
+        totalStats.put("total", totalCodes);
+        totalStats.put("used", usedCodes);
+        totalStats.put("unused", unusedCodes);
+        stats.put("summary", totalStats);
+        
+        return ApiResponse.ok("ok", stats);
+    }
+
     private static final char[] CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".toCharArray();
     private String randomCode() {
         Random r = new Random();
@@ -188,22 +240,104 @@ public class AdminController {
     }
 
     // 用户分页列表
+    // 管理员查询用户列表
     @GetMapping("/users")
     public ApiResponse<?> listUsers(@RequestHeader(name = "Authorization", required = false) String authHeader,
                                     @RequestParam(name = "page", defaultValue = "1") int page,
-                                    @RequestParam(name = "size", defaultValue = "20") int size) {
+                                    @RequestParam(name = "size", defaultValue = "20") int size,
+                                    @RequestParam(name = "role", required = false) String role,
+                                    @RequestParam(name = "status", required = false) String status,
+                                    @RequestParam(name = "search", required = false) String search) {
         User admin = requireAdmin(authHeader).orElse(null);
         if (admin == null) return ApiResponse.error("权限不足或令牌无效");
-        page = Math.max(1, page);
-        size = Math.min(200, Math.max(1, size));
+        
+        if (size > 200) size = 200;
+        if (page < 1) page = 1;
+        
         Pageable pageable = PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "id"));
-        Page<User> pg = userRepo.findAll(pageable);
+        Page<User> pg;
+        
+        // 解析角色参数
+        User.Role userRole = null;
+        if (role != null && !role.trim().isEmpty()) {
+            try {
+                userRole = User.Role.valueOf(role.toLowerCase());
+            } catch (IllegalArgumentException e) {
+                return ApiResponse.error("无效的用户角色: " + role);
+            }
+        }
+        
+        // 解析状态参数
+        User.Status userStatus = null;
+        if (status != null && !status.trim().isEmpty()) {
+            try {
+                userStatus = User.Status.valueOf(status.toLowerCase());
+            } catch (IllegalArgumentException e) {
+                return ApiResponse.error("无效的用户状态: " + status);
+            }
+        }
+        
+        // 根据不同条件组合查询
+        if (search != null && !search.trim().isEmpty()) {
+            String searchTerm = search.trim();
+            if (userRole != null && userStatus != null) {
+                pg = userRepo.findByUsernameContainingIgnoreCaseAndRoleAndStatus(searchTerm, userRole, userStatus, pageable);
+            } else if (userRole != null) {
+                pg = userRepo.findByUsernameContainingIgnoreCaseAndRole(searchTerm, userRole, pageable);
+            } else if (userStatus != null) {
+                pg = userRepo.findByUsernameContainingIgnoreCaseAndStatus(searchTerm, userStatus, pageable);
+            } else {
+                pg = userRepo.findByUsernameContainingIgnoreCaseOrDisplayNameContainingIgnoreCase(searchTerm, searchTerm, pageable);
+            }
+        } else {
+            if (userRole != null && userStatus != null) {
+                pg = userRepo.findByRoleAndStatus(userRole, userStatus, pageable);
+            } else if (userRole != null) {
+                pg = userRepo.findByRole(userRole, pageable);
+            } else if (userStatus != null) {
+                pg = userRepo.findByStatus(userStatus, pageable);
+            } else {
+                pg = userRepo.findAll(pageable);
+            }
+        }
+        
         Map<String, Object> resp = new HashMap<>();
         resp.put("page", page);
         resp.put("size", size);
         resp.put("total", pg.getTotalElements());
         resp.put("items", pg.getContent().stream().map(UserInfo::new).toList());
         return ApiResponse.ok("ok", resp);
+    }
+
+    // 管理员用户统计
+    @GetMapping("/users/stats")
+    public ApiResponse<?> getUserStats(@RequestHeader(name = "Authorization", required = false) String authHeader) {
+        User admin = requireAdmin(authHeader).orElse(null);
+        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        
+        Map<String, Object> stats = new HashMap<>();
+        
+        // 按角色统计
+        Object[][] roleStats = userRepo.countByRoleGroup();
+        Map<String, Long> roleCount = new HashMap<>();
+        for (Object[] row : roleStats) {
+            roleCount.put(row[0].toString(), (Long) row[1]);
+        }
+        stats.put("byRole", roleCount);
+        
+        // 按状态统计
+        Object[][] statusStats = userRepo.countByStatusGroup();
+        Map<String, Long> statusCount = new HashMap<>();
+        for (Object[] row : statusStats) {
+            statusCount.put(row[0].toString(), (Long) row[1]);
+        }
+        stats.put("byStatus", statusCount);
+        
+        // 总数统计
+        long totalUsers = userRepo.count();
+        stats.put("total", totalUsers);
+        
+        return ApiResponse.ok("ok", stats);
     }
 
     // 创建用户
@@ -312,6 +446,105 @@ public class AdminController {
         return ApiResponse.ok("ok", resp);
     }
 
+    // 管理员查询房间列表
+    @GetMapping("/rooms")
+    public ApiResponse<?> listRooms(@RequestHeader(name = "Authorization", required = false) String authHeader,
+                                    @RequestParam(name = "page", defaultValue = "1") int page,
+                                    @RequestParam(name = "size", defaultValue = "20") int size,
+                                    @RequestParam(name = "status", required = false) String status,
+                                    @RequestParam(name = "gameCode", required = false) String gameCode,
+                                    @RequestParam(name = "name", required = false) String name) {
+        User admin = requireAdmin(authHeader).orElse(null);
+        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        
+        if (size > 200) size = 200;
+        if (page < 1) page = 1;
+        
+        Pageable pageable = PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Room> pg;
+        
+        // 解析状态参数
+        Room.Status roomStatus = null;
+        if (status != null && !status.trim().isEmpty()) {
+            try {
+                roomStatus = Room.Status.valueOf(status.toLowerCase());
+            } catch (IllegalArgumentException e) {
+                return ApiResponse.error("无效的房间状态: " + status);
+            }
+        }
+        
+        // 解析游戏类型参数
+        Game game = null;
+        if (gameCode != null && !gameCode.trim().isEmpty()) {
+            game = gameRepo.findByCode(gameCode.toUpperCase()).orElse(null);
+            if (game == null) {
+                return ApiResponse.error("无效的游戏类型: " + gameCode);
+            }
+        }
+        
+        // 根据不同条件组合查询
+        if (name != null && !name.trim().isEmpty()) {
+            String searchName = name.trim();
+            if (roomStatus != null && game != null) {
+                pg = roomRepo.findByNameContainingIgnoreCaseAndStatusAndGame(searchName, roomStatus, game, pageable);
+            } else if (roomStatus != null) {
+                pg = roomRepo.findByNameContainingIgnoreCaseAndStatus(searchName, roomStatus, pageable);
+            } else if (game != null) {
+                pg = roomRepo.findByNameContainingIgnoreCaseAndGame(searchName, game, pageable);
+            } else {
+                pg = roomRepo.findByNameContainingIgnoreCase(searchName, pageable);
+            }
+        } else {
+            if (roomStatus != null && game != null) {
+                pg = roomRepo.findByStatusAndGame(roomStatus, game, pageable);
+            } else if (roomStatus != null) {
+                pg = roomRepo.findByStatus(roomStatus, pageable);
+            } else if (game != null) {
+                pg = roomRepo.findByGame(game, pageable);
+            } else {
+                pg = roomRepo.findAll(pageable);
+            }
+        }
+        
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("page", page);
+        resp.put("size", size);
+        resp.put("total", pg.getTotalElements());
+        resp.put("items", pg.getContent().stream().map(RoomInfo::new).toList());
+        return ApiResponse.ok("ok", resp);
+    }
+
+    // 管理员房间统计
+    @GetMapping("/rooms/stats")
+    public ApiResponse<?> getRoomStats(@RequestHeader(name = "Authorization", required = false) String authHeader) {
+        User admin = requireAdmin(authHeader).orElse(null);
+        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        
+        Map<String, Object> stats = new HashMap<>();
+        
+        // 按状态统计
+        Object[][] statusStats = roomRepo.countByStatus();
+        Map<String, Long> statusCount = new HashMap<>();
+        for (Object[] row : statusStats) {
+            statusCount.put(row[0].toString(), (Long) row[1]);
+        }
+        stats.put("byStatus", statusCount);
+        
+        // 按游戏类型统计
+        Object[][] gameStats = roomRepo.countByGameType();
+        Map<String, Long> gameCount = new HashMap<>();
+        for (Object[] row : gameStats) {
+            gameCount.put((String) row[0], (Long) row[1]);
+        }
+        stats.put("byGameType", gameCount);
+        
+        // 总数统计
+        long totalRooms = roomRepo.count();
+        stats.put("total", totalRooms);
+        
+        return ApiResponse.ok("ok", stats);
+    }
+
     // 管理员删除房间
     @DeleteMapping("/rooms/{id}")
     public ApiResponse<?> deleteRoom(@RequestHeader(name = "Authorization", required = false) String authHeader,
@@ -386,6 +619,32 @@ public class AdminController {
             this.expiresAt = ic.getExpiresAt() == null ? null : ic.getExpiresAt().toString();
             this.batchNo = ic.getBatchNo();
             this.expired = ic.getExpiresAt() != null && ic.getExpiresAt().isBefore(LocalDateTime.now());
+        }
+    }
+
+    static class RoomInfo {
+        public Long id;
+        public String name;
+        public String gameCode;
+        public String gameName;
+        public String ownerUsername;
+        public String status;
+        public Integer maxPlayers;
+        public boolean isPrivate;
+        public String createdAt;
+        public String updatedAt;
+
+        public RoomInfo(Room r) {
+            this.id = r.getId();
+            this.name = r.getName();
+            this.gameCode = r.getGame() == null ? null : r.getGame().getCode();
+            this.gameName = r.getGame() == null ? null : r.getGame().getName();
+            this.ownerUsername = r.getOwner() == null ? null : r.getOwner().getUsername();
+            this.status = r.getStatus().name();
+            this.maxPlayers = r.getMaxPlayers();
+            this.isPrivate = r.isPrivateRoom();
+            this.createdAt = r.getCreatedAt() == null ? null : r.getCreatedAt().toString();
+            this.updatedAt = r.getUpdatedAt() == null ? null : r.getUpdatedAt().toString();
         }
     }
 }

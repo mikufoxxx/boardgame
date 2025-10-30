@@ -1,4 +1,4 @@
-# Boardgame 后端 API 文档（24 个接口 + WebSocket 实时通信）
+# Boardgame 后端 API 文档（30 个接口 + WebSocket 实时通信）
 
 - 统一返回：除 UNO 专属接口外，均返回 `ApiResponse`
   - 格式：`{"success":boolean, "message":string, "data":any}`
@@ -63,7 +63,7 @@
   - req: `{ "ready": boolean }`
   - resp: `{"success":true,"message":"状态已更新","data":null}`
 
-## 管理员（9）
+## 管理员（15）
 - POST `/api/admin/invite-codes`
   - header: `Authorization: Bearer {admin-token}`
   - req: `{ "count": number (1-500), "batchNo"?: string, "expiresDays"?: number }`
@@ -76,12 +76,23 @@
     - `InviteCodeInfo`：`{ id, code, used, usedBy, usedAt, createdBy, createdAt, expiresAt, batchNo, expired }`
   - 成功消息：`ok`
   - 说明：支持按使用状态和批次号筛选，按创建时间倒序排列
+- GET `/api/admin/invite-codes/stats`
+  - header: `Authorization: Bearer {admin-token}`
+  - resp.data: `{ "byUsedStatus": {"used": number, "unused": number}, "byBatchNo": {batchNo: number}, "byBatchNoAndUsedStatus": {batchNo: {"used": number, "unused": number}}, "summary": {"total": number, "used": number, "unused": number} }`
+  - 成功消息：`ok`
+  - 说明：邀请码统计信息，包含使用状态、批次分布等统计数据
 - GET `/api/admin/users`
   - header: `Authorization: Bearer {admin-token}`
-  - query: `page`（默认1）, `size`（默认20，最大200）
+  - query: `page`（默认1）, `size`（默认20，最大200）, `role`（可选：`admin`/`user`）, `status`（可选：`active`/`banned`）, `search`（可选：用户名或显示名搜索）
   - resp.data: `{ "page": number, "size": number, "total": number, "items": [AdminUserInfo] }`
     - `AdminUserInfo`：`{ id, username, displayName, role, status, createdAt, updatedAt }`
   - 成功消息：`ok`
+  - 说明：支持按角色、状态筛选和用户名搜索，按ID倒序排列
+- GET `/api/admin/users/stats`
+  - header: `Authorization: Bearer {admin-token}`
+  - resp.data: `{ "byRole": {"admin": number, "user": number}, "byStatus": {"active": number, "banned": number}, "total": number }`
+  - 成功消息：`ok`
+  - 说明：用户统计信息，包含角色分布、状态分布等统计数据
 - POST `/api/admin/users`
   - header: `Authorization: Bearer {admin-token}`
   - req: `{ "username": string, "password": string, "displayName"?: string, "role"?: "admin"|"user" }`
@@ -106,6 +117,18 @@
   - resp.data: `{ "page": number, "size": number, "total": number, "items": [AuditInfo] }`
     - `AuditInfo`：`{ id, action, operatorId, targetType, targetId, detail, createdAt }`
   - 成功消息：`ok`
+- GET `/api/admin/rooms`
+  - header: `Authorization: Bearer {admin-token}`
+  - query: `page`（默认1）, `size`（默认20，最大200）, `status`（可选：`waiting`/`playing`/`finished`/`disbanded`）, `gameCode`（可选：游戏类型如`UNO`）, `name`（可选：房间名模糊搜索）
+  - resp.data: `{ "page": number, "size": number, "total": number, "items": [RoomInfo] }`
+    - `RoomInfo`：`{ id, name, gameCode, gameName, ownerUsername, status, maxPlayers, isPrivate, createdAt, updatedAt }`
+  - 成功消息：`ok`
+  - 说明：支持按状态、游戏类型筛选和房间名搜索，按创建时间倒序排列
+- GET `/api/admin/rooms/stats`
+  - header: `Authorization: Bearer {admin-token}`
+  - resp.data: `{ "byStatus": {"waiting": number, "playing": number, "finished": number, "disbanded": number}, "byGameType": {gameCode: number}, "total": number }`
+  - 成功消息：`ok`
+  - 说明：房间统计信息，包含状态分布、游戏类型分布等统计数据
 - DELETE `/api/admin/rooms/{id}`
   - header: `Authorization: Bearer {admin-token}`
   - resp: `{"success":true,"message":"删除成功","data":null}`
