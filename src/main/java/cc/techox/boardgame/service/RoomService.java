@@ -91,4 +91,31 @@ public class RoomService {
             return true;
         }).orElse(false);
     }
+
+    // 房主解散房间：只有房主可以解散自己的房间，直接删除
+    @Transactional
+    public boolean ownerDisbandRoom(Long roomId, User owner) {
+        return roomRepo.findById(roomId).map(room -> {
+            // 检查是否是房主
+            if (!room.getOwner().getId().equals(owner.getId())) {
+                return false;
+            }
+            
+            // 检查房间状态，只有等待中的房间可以解散
+            if (room.getStatus() != Room.Status.waiting) {
+                return false;
+            }
+            
+            // 删除所有房间玩家
+            List<RoomPlayer> players = roomPlayerRepo.findByRoom(room);
+            for (RoomPlayer rp : players) { 
+                roomPlayerRepo.delete(rp); 
+            }
+            
+            // 直接删除房间
+            roomRepo.delete(room);
+            
+            return true;
+        }).orElse(false);
+    }
 }

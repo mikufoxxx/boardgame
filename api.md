@@ -1,4 +1,4 @@
-# Boardgame 后端 API 文档（30 个接口 + WebSocket 实时通信）
+# Boardgame 后端 API 文档（31 个接口 + WebSocket 实时通信）
 
 - 统一返回：除 UNO 专属接口外，均返回 `ApiResponse`
   - 格式：`{"success":boolean, "message":string, "data":any}`
@@ -41,7 +41,7 @@
   - resp.data: `[{ "code": string, "name": string, "minPlayers": number, "maxPlayers": number }]`
   - 成功消息：`ok`
 
-## 房间（5）
+## 房间（6）
 - GET `/api/rooms`
   - resp.data: `RoomInfo[]`
     - `RoomInfo`：`{ id, name, gameCode, ownerId, status, maxPlayers, isPrivate, createdAt, updatedAt }`
@@ -62,6 +62,10 @@
   - header: `Authorization: Bearer {token}`
   - req: `{ "ready": boolean }`
   - resp: `{"success":true,"message":"状态已更新","data":null}`
+- DELETE `/api/rooms/{id}/disband`
+  - header: `Authorization: Bearer {token}`
+  - resp: `{"success":true,"message":"房间已解散","data":null}`
+  - 说明：只有房主可以解散等待中的房间
 
 ## 管理员（15）
 - POST `/api/admin/invite-codes`

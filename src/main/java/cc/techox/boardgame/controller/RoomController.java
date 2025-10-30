@@ -44,6 +44,23 @@ public class RoomController {
         return ApiResponse.ok("房间创建成功", new RoomInfo(r));
     }
 
+    @DeleteMapping("/{id}/disband")
+    public ApiResponse<?> disband(@RequestHeader(name = "Authorization", required = false) String authHeader,
+                                  @PathVariable("id") Long roomId) {
+        String token = parseBearer(authHeader);
+        if (token == null) return ApiResponse.error("未提供令牌");
+        
+        User user = authService.getUserByToken(token).orElse(null);
+        if (user == null) return ApiResponse.error("未登录或令牌无效");
+        
+        boolean success = roomService.ownerDisbandRoom(roomId, user);
+        if (!success) {
+            return ApiResponse.error("解散失败：房间不存在、您不是房主或房间状态不允许解散");
+        }
+        
+        return ApiResponse.ok("房间已解散", null);
+    }
+
     private String parseBearer(String h) {
         if (h == null) return null;
         if (h.toLowerCase().startsWith("bearer ")) return h.substring(7).trim();
