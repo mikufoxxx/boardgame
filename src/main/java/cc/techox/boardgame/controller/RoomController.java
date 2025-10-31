@@ -65,6 +65,31 @@ public class RoomController {
         }
     }
 
+    @PostMapping("/{id}/transfer-owner")
+    public ApiResponse<?> transferOwner(@RequestHeader(name = "Authorization", required = false) String authHeader,
+                                        @PathVariable("id") Long roomId,
+                                        @RequestParam("newOwnerId") Long newOwnerId) {
+        try {
+            User currentOwner = AuthUtil.requireAuth(authHeader, authService);
+            
+            // 查找房间
+            Room room = roomService.getRoomById(roomId);
+            
+            // 查找新房主
+            User newOwner = authService.getUserById(newOwnerId)
+                    .orElseThrow(() -> new IllegalArgumentException("新房主用户不存在"));
+            
+            // 执行转让
+            roomService.transferOwnership(room, currentOwner, newOwner);
+            
+            return ApiResponse.ok("房主转让成功", null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("转让房主失败: " + e.getMessage());
+        }
+    }
+
 
 
     static class RoomInfo {

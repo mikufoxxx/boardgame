@@ -43,10 +43,10 @@ public class RoomStatusResetService implements ApplicationRunner {
     @Transactional
     public void resetRoomStatusOnStartup() {
         try {
-            // 1. 删除正在游戏中的房间（因为游戏状态已丢失）
-            int deletedPlayingRooms = roomRepository.deletePlayingRooms();
-            if (deletedPlayingRooms > 0) {
-                log.info("删除了 {} 个正在游戏中的房间（游戏状态已丢失）", deletedPlayingRooms);
+            // 1. 保留正在游戏中的房间，但清空内存状态（允许玩家重连）
+            long playingRooms = roomRepository.countByStatus(Room.Status.playing);
+            if (playingRooms > 0) {
+                log.info("保留了 {} 个正在游戏中的房间（支持玩家重连）", playingRooms);
             }
             
             // 2. 删除已结束的房间
@@ -61,7 +61,7 @@ public class RoomStatusResetService implements ApplicationRunner {
                 log.info("保留了 {} 个等待中的房间（玩家可重新加入）", touchedWaitingRooms);
             }
             
-            // 4. 清空所有内存中的房间和游戏状态
+            // 4. 清空所有内存中的房间和游戏状态（但保留数据库中的房间记录）
             gameStateManager.clearAllStates();
             log.info("清空了所有内存中的房间和游戏状态");
             

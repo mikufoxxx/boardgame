@@ -102,6 +102,10 @@ public class AuthService {
                 .map(AuthSession::getUser);
     }
 
+    public Optional<User> getUserById(Long userId) {
+        return userRepo.findById(userId);
+    }
+
     @Transactional
     public User updateProfile(User user, String displayName, String currentPassword, String newPassword) {
         // 重新从数据库获取用户，确保是managed状态

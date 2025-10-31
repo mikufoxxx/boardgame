@@ -1,8 +1,10 @@
 package cc.techox.boardgame.websocket;
 
 import cc.techox.boardgame.memory.GameStateManager;
+import cc.techox.boardgame.model.Room;
 import cc.techox.boardgame.model.User;
 import cc.techox.boardgame.service.AuthService;
+import cc.techox.boardgame.service.RoomService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
@@ -17,15 +19,18 @@ public class CommandRouter {
     private final WebSocketSessionManager sessionManager;
     private final GameEventBroadcaster eventBroadcaster;
     private final GameStateManager gameStateManager;
+    private final RoomService roomService;
 
     public CommandRouter(AuthService authService,
                          WebSocketSessionManager sessionManager,
                          GameEventBroadcaster eventBroadcaster,
-                         GameStateManager gameStateManager) {
+                         GameStateManager gameStateManager,
+                         RoomService roomService) {
         this.authService = authService;
         this.sessionManager = sessionManager;
         this.eventBroadcaster = eventBroadcaster;
         this.gameStateManager = gameStateManager;
+        this.roomService = roomService;
     }
 
     public void route(WebSocketSession session, JsonNode envelope) throws Exception {
@@ -172,14 +177,25 @@ public class CommandRouter {
         }
         Long roomId = data.get("roomId").asLong();
         
-        // 同时更新 WebSocket 频道管理和游戏状态管理
-        sessionManager.leaveRoom(user.getId(), roomId);
-        gameStateManager.leaveRoom(roomId, user.getId());
-        
-        System.out.println("用户 " + user.getId() + " 离开房间 " + roomId + "，WebSocket频道和游戏状态已同步");
-        
-        sendAck(session, "room.leave", cid, Map.of("roomId", roomId, "left", true));
-        eventBroadcaster.broadcastRoomUserLeft(roomId, user);
+        try {
+            // 获取房间信息
+            Room room = roomService.getRoomById(roomId);
+            
+            // 调用 RoomService.leaveRoom 处理房主转让逻辑
+            roomService.leaveRoom(room, user);
+            
+            // 同时更新 WebSocket 频道管理
+            sessionManager.leaveRoom(user.getId(), roomId);
+            
+            System.out.println("用户 " + user.getUsername() + " 离开房间 " + roomId + "，已处理房主转让逻辑");
+            
+            sendAck(session, "room.leave", cid, Map.of("roomId", roomId, "left", true));
+        } catch (IllegalArgumentException e) {
+            sendErr(session, "LEAVE_ROOM_ERROR", e.getMessage(), cid);
+        } catch (Exception e) {
+            System.err.println("处理离开房间请求失败: " + e.getMessage());
+            sendErr(session, "LEAVE_ROOM_ERROR", "离开房间失败", cid);
+        }
     }
 
     private void handleRoomReady(WebSocketSession session, JsonNode data, String cid) throws Exception {

@@ -2,6 +2,7 @@ package cc.techox.boardgame.repo;
 
 import cc.techox.boardgame.model.Game;
 import cc.techox.boardgame.model.Room;
+import cc.techox.boardgame.model.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,6 +10,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface RoomRepository extends JpaRepository<Room, Long> {
@@ -21,6 +23,13 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     
     // 按状态查询房间
     Page<Room> findByStatus(Room.Status status, Pageable pageable);
+    
+    // 按状态统计房间数量
+    long countByStatus(Room.Status status);
+    
+    // 查找用户创建的活跃房间（waiting 或 playing 状态）
+    @Query("SELECT r FROM Room r WHERE r.owner = :owner AND r.status IN ('waiting', 'playing')")
+    List<Room> findActiveRoomsByOwner(@Param("owner") User owner);
     
     // 按游戏类型查询房间
     Page<Room> findByGame(Game game, Pageable pageable);
