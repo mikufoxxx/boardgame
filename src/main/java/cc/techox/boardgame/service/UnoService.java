@@ -9,13 +9,16 @@ import cc.techox.boardgame.game.uno.UnoState;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class UnoService {
     private final RoomRepository roomRepo;
+    private final UserRepository userRepo;
     private final GameStateManager gameStateManager;
     private final GameDataManager gameDataManager;
     
@@ -23,9 +26,11 @@ public class UnoService {
     private static final AtomicLong matchIdGenerator = new AtomicLong(1000);
     
     public UnoService(RoomRepository roomRepo, 
+                     UserRepository userRepo,
                      GameStateManager gameStateManager,
                      GameDataManager gameDataManager) {
         this.roomRepo = roomRepo;
+        this.userRepo = userRepo;
         this.gameStateManager = gameStateManager;
         this.gameDataManager = gameDataManager;
     }
@@ -90,14 +95,14 @@ public class UnoService {
     @Transactional(readOnly = true)
     public Map<String, Object> view(long matchId, long viewerId) {
         // 从内存获取游戏会话
-        gameStateManager.getGameSession(matchId)
+        GameStateManager.GameStateData gameSession = gameStateManager.getGameSession(matchId)
             .orElseThrow(() -> new IllegalArgumentException("游戏会话不存在"));
         
         // 从内存获取游戏状态
         UnoState state = (UnoState) gameStateManager.getGameState(matchId)
             .orElseThrow(() -> new IllegalArgumentException("游戏状态不存在"));
         
-        return UnoEngine.publicView(state, viewerId);
+        return UnoEngine.publicViewWithUserInfo(state, viewerId, getUserInfoMap(state));
     }
 
     @Transactional
@@ -129,7 +134,7 @@ public class UnoService {
             gameStateManager.finishGame(matchId, "finished", winnerId);
         }
         
-        return UnoEngine.publicView(newState, player.getId());
+        return UnoEngine.publicViewWithUserInfo(newState, player.getId(), getUserInfoMap(newState));
     }
 
     @Transactional
@@ -155,6 +160,23 @@ public class UnoService {
         // 增加回合数
         gameStateManager.incrementGameTurn(matchId);
         
-        return UnoEngine.publicView(newState, player.getId());
+        return UnoEngine.publicViewWithUserInfo(newState, player.getId(), getUserInfoMap(newState));
+    }
+    
+    /**
+     * 获取游戏中所有玩家的用户信息
+     */
+    private Map<Long, Map<String, Object>> getUserInfoMap(UnoState state) {
+        Map<Long, Map<String, Object>> userInfoMap = new HashMap<>();
+        for (UnoState.PlayerState player : state.players) {
+            User user = userRepo.findById(player.userId).orElse(null);
+            if (user != null) {
+                Map<String, Object> userInfo = new HashMap<>();
+                userInfo.put("username", user.getUsername());
+                userInfo.put("displayName", user.getDisplayName());
+                userInfoMap.put(player.userId, userInfo);
+            }
+        }
+        return userInfoMap;
     }
 }

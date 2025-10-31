@@ -223,21 +223,97 @@ public class UnoEngine {
 
     public static Map<String, Object> publicView(UnoState s, long viewerId) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("currentIdx", s.currentIdx);
+        m.put("currentPlayer", s.currentIdx);
         m.put("direction", s.direction);
-        m.put("pendingDraw", s.pendingDraw);
-        m.put("forcedColor", s.forcedColor);
-        m.put("top", s.discardPile.peek());
+        m.put("drawCount", s.pendingDraw);
+        m.put("lastColor", s.forcedColor);
+        
+        // 返回顶部卡牌的对象格式
+        if (s.discardPile.peek() != null) {
+            m.put("topCard", UnoCard.codeToObject(s.discardPile.peek()));
+        } else {
+            m.put("topCard", null);
+        }
+        
         m.put("started", s.started);
         m.put("finished", s.finished);
         m.put("winnerUserId", s.winnerUserId);
+        
         List<Map<String,Object>> players = new ArrayList<>();
         for (int i=0;i<s.players.size();i++) {
             UnoState.PlayerState p = s.players.get(i);
             Map<String,Object> pm = new LinkedHashMap<>();
             pm.put("userId", p.userId);
-            pm.put("handCount", p.hand.size());
-            if (p.userId == viewerId) pm.put("hand", new ArrayList<>(p.hand));
+            pm.put("handSize", p.hand.size());
+            pm.put("position", i);
+            pm.put("hasCalledUno", false); // TODO: 实现 UNO 调用功能
+            
+            // 如果是当前查看者，返回完整手牌对象
+            if (p.userId == viewerId) {
+                List<Map<String, Object>> handObjects = new ArrayList<>();
+                for (String cardCode : p.hand) {
+                    handObjects.add(UnoCard.codeToObject(cardCode));
+                }
+                pm.put("hand", handObjects);
+            }
+            
+            players.add(pm);
+        }
+        m.put("players", players);
+        return m;
+    }
+
+    /**
+     * 增强版的 publicView，包含用户信息
+     */
+    public static Map<String, Object> publicViewWithUserInfo(UnoState s, long viewerId, Map<Long, Map<String, Object>> userInfoMap) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("currentPlayer", s.currentIdx);
+        m.put("direction", s.direction);
+        m.put("drawCount", s.pendingDraw);
+        m.put("lastColor", s.forcedColor);
+        
+        // 返回顶部卡牌的对象格式
+        if (s.discardPile.peek() != null) {
+            m.put("topCard", UnoCard.codeToObject(s.discardPile.peek()));
+        } else {
+            m.put("topCard", null);
+        }
+        
+        m.put("started", s.started);
+        m.put("finished", s.finished);
+        m.put("winnerUserId", s.winnerUserId);
+        
+        List<Map<String,Object>> players = new ArrayList<>();
+        for (int i=0;i<s.players.size();i++) {
+            UnoState.PlayerState p = s.players.get(i);
+            Map<String,Object> pm = new LinkedHashMap<>();
+            pm.put("userId", p.userId);
+            
+            // 添加用户信息
+            Map<String, Object> userInfo = userInfoMap.get(p.userId);
+            if (userInfo != null) {
+                pm.put("username", userInfo.get("username"));
+                pm.put("displayName", userInfo.get("displayName"));
+            } else {
+                pm.put("username", "unknown");
+                pm.put("displayName", "未知用户");
+            }
+            
+            pm.put("handSize", p.hand.size());
+            pm.put("position", i);
+            pm.put("isReady", false); // 游戏中不需要准备状态
+            pm.put("hasCalledUno", false); // TODO: 实现 UNO 调用功能
+            
+            // 如果是当前查看者，返回完整手牌对象
+            if (p.userId == viewerId) {
+                List<Map<String, Object>> handObjects = new ArrayList<>();
+                for (String cardCode : p.hand) {
+                    handObjects.add(UnoCard.codeToObject(cardCode));
+                }
+                pm.put("hand", handObjects);
+            }
+            
             players.add(pm);
         }
         m.put("players", players);

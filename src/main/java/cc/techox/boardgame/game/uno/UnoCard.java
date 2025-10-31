@@ -1,6 +1,8 @@
 package cc.techox.boardgame.game.uno;
 
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 
 public class UnoCard {
     public enum Color { RED, GREEN, BLUE, YELLOW, BLACK }
@@ -46,6 +48,74 @@ public class UnoCard {
             default -> t = "?";
         }
         return c + "-" + t;
+    }
+
+    /**
+     * 返回标准的对象格式，供前端使用
+     */
+    public Map<String, Object> toObject() {
+        Map<String, Object> cardObj = new LinkedHashMap<>();
+        cardObj.put("id", code());
+        cardObj.put("color", getColorName());
+        cardObj.put("value", getValueName());
+        cardObj.put("type", getCardType());
+        return cardObj;
+    }
+
+    /**
+     * 从卡牌代码创建对象格式
+     */
+    public static Map<String, Object> codeToObject(String code) {
+        try {
+            UnoCard card = fromCode(code);
+            return card.toObject();
+        } catch (Exception e) {
+            // 如果解析失败，返回基本信息
+            Map<String, Object> cardObj = new LinkedHashMap<>();
+            cardObj.put("id", code);
+            cardObj.put("color", "unknown");
+            cardObj.put("value", "unknown");
+            cardObj.put("type", "unknown");
+            return cardObj;
+        }
+    }
+
+    private String getColorName() {
+        return switch (color) {
+            case RED -> "red";
+            case GREEN -> "green";
+            case BLUE -> "blue";
+            case YELLOW -> "yellow";
+            case BLACK -> "black";
+        };
+    }
+
+    private String getValueName() {
+        return switch (type) {
+            case ZERO -> "0";
+            case ONE -> "1";
+            case TWO -> "2";
+            case THREE -> "3";
+            case FOUR -> "4";
+            case FIVE -> "5";
+            case SIX -> "6";
+            case SEVEN -> "7";
+            case EIGHT -> "8";
+            case NINE -> "9";
+            case SKIP -> "skip";
+            case REVERSE -> "reverse";
+            case DRAW2 -> "draw2";
+            case WILD -> "wild";
+            case WILDDRAW4 -> "wilddraw4";
+        };
+    }
+
+    private String getCardType() {
+        return switch (type) {
+            case ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE -> "number";
+            case SKIP, REVERSE, DRAW2 -> "action";
+            case WILD, WILDDRAW4 -> "wild";
+        };
     }
 
     public static UnoCard fromCode(String code) {
