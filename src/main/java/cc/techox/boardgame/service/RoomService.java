@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class RoomService {
@@ -38,6 +39,31 @@ public class RoomService {
     public Room getRoomById(Long roomId) {
         return roomRepo.findByIdWithGame(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("房间不存在"));
+    }
+
+    /**
+     * 获取房间当前的对局信息
+     */
+    public Map<String, Object> getCurrentMatch(Long roomId) {
+        // 验证房间是否存在
+        Room room = getRoomById(roomId);
+        
+        // 查找房间当前的对局
+        Optional<GameStateManager.GameStateData> gameSession = gameStateManager.getGameSessionByRoomId(roomId);
+        
+        if (gameSession.isPresent()) {
+            GameStateManager.GameStateData gameData = gameSession.get();
+            return Map.of(
+                "matchId", gameData.getMatchId(),
+                "status", gameData.getStatus(),
+                "gameCode", gameData.getGameCode(),
+                "startedAt", gameData.getStartedAt().toString(),
+                "playerCount", gameData.getPlayerCount(),
+                "turnCount", gameData.getTurnCount()
+            );
+        } else {
+            return null; // 房间当前没有对局
+        }
     }
 
     @Transactional

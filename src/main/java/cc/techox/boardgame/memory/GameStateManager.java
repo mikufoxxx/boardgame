@@ -285,6 +285,16 @@ public class GameStateManager {
         return gameStates.containsKey(matchId);
     }
     
+    /**
+     * 根据房间ID查找当前进行中的对局
+     */
+    public Optional<GameStateData> getGameSessionByRoomId(Long roomId) {
+        return gameStates.values().stream()
+                .filter(gameData -> roomId.equals(gameData.getRoomId()))
+                .filter(gameData -> "playing".equals(gameData.getStatus()))
+                .findFirst();
+    }
+    
     // ==================== 房间玩家状态管理 ====================
     
     /**

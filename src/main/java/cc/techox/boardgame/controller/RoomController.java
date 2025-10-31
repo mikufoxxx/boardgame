@@ -11,6 +11,7 @@ import cc.techox.boardgame.util.HashUtil;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/rooms")
@@ -87,6 +88,27 @@ public class RoomController {
             return ApiResponse.error(e.getMessage());
         } catch (Exception e) {
             return ApiResponse.error("转让房主失败: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/{id}/current-match")
+    public ApiResponse<?> getCurrentMatch(@RequestHeader(name = "Authorization", required = false) String authHeader,
+                                          @PathVariable("id") Long roomId) {
+        try {
+            User user = AuthUtil.requireAuth(authHeader, authService);
+            
+            // 获取房间当前对局信息
+            Map<String, Object> matchInfo = roomService.getCurrentMatch(roomId);
+            
+            if (matchInfo != null) {
+                return ApiResponse.ok("获取成功", matchInfo);
+            } else {
+                return ApiResponse.ok("房间当前没有对局", null);
+            }
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("获取对局信息失败: " + e.getMessage());
         }
     }
 
