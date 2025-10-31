@@ -58,7 +58,9 @@ public class CommandRouter {
             case "ping":
                 // ping 命令不需要认证，直接响应
                 try {
-                    sendAck(session, "ping", cid, Map.of("timestamp", System.currentTimeMillis()));
+                    // 使用相对时间戳，避免 JavaScript 精度问题
+                    long relativeTimestamp = System.currentTimeMillis() % 1000000000L; // 取模减小数值
+                    sendAck(session, "ping", cid, Map.of("timestamp", relativeTimestamp));
                     System.out.println("处理 ping 请求，会话: " + session.getId());
                 } catch (Exception e) {
                     System.err.println("处理 ping 请求失败: " + e.getMessage());

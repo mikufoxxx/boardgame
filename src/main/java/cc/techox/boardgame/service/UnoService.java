@@ -11,12 +11,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class UnoService {
     private final RoomRepository roomRepo;
     private final GameStateManager gameStateManager;
     private final GameDataManager gameDataManager;
+    
+    // 使用原子递增器生成 matchId，避免 JavaScript 精度问题
+    private static final AtomicLong matchIdGenerator = new AtomicLong(1000);
+    
     public UnoService(RoomRepository roomRepo, 
                      GameStateManager gameStateManager,
                      GameDataManager gameDataManager) {
@@ -52,9 +57,9 @@ public class UnoService {
             throw new IllegalArgumentException("至少需要2名玩家才能开始游戏");
         }
 
-        // 生成唯一的 matchId（使用时间戳 + 房间ID）
-        Long matchId = System.currentTimeMillis() * 1000 + roomId;
-        System.out.println("生成对局ID: " + matchId);
+        // 生成唯一的 matchId（使用递增 ID，避免 JavaScript 精度问题）
+        Long matchId = matchIdGenerator.incrementAndGet();
+        System.out.println("生成对局ID: " + matchId + " (房间ID: " + roomId + ")");
 
         // 创建初始游戏状态并存储到内存
         System.out.println("正在加载卡牌数据...");
