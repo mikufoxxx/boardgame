@@ -298,6 +298,43 @@
 }
 ```
 
+### **4. 房间解散通知**
+
+当房主或管理员解散房间时，服务端通过WS依次推送以下事件：
+
+**即将解散（广播到房间频道）：**
+```json
+{
+  "type": "room_disbanding",
+  "data": {
+    "roomId": 123,
+    "initiatedBy": { "userId": 1, "username": "alice", "displayName": "Alice" },
+    "reason": "房主解散房间"
+  }
+}
+```
+
+**逐个踢出（单播到各用户）：**
+```json
+{
+  "type": "room_kicked",
+  "data": {
+    "roomId": 123,
+    "reason": "房间已解散"
+  }
+}
+```
+
+**最终解散（可能无人订阅房间频道）：**
+```json
+{
+  "type": "room_disbanded",
+  "data": {
+    "roomId": 123
+  }
+}
+```
+
 ### **4. 错误处理**
 
 **统一错误格式：**

@@ -1,92 +1,155 @@
 package cc.techox.boardgame.service;
 
+import cc.techox.boardgame.config.GameDataManager;
+import cc.techox.boardgame.memory.GameStateManager;
+import cc.techox.boardgame.model.*;
+import cc.techox.boardgame.repo.*;
 import cc.techox.boardgame.game.uno.UnoEngine;
 import cc.techox.boardgame.game.uno.UnoState;
-import cc.techox.boardgame.model.Game;
-import cc.techox.boardgame.model.Match;
-import cc.techox.boardgame.model.Room;
-import cc.techox.boardgame.model.RoomPlayer;
-import cc.techox.boardgame.model.User;
-import cc.techox.boardgame.repo.MatchRepository;
-import cc.techox.boardgame.repo.RoomPlayerRepository;
-import cc.techox.boardgame.repo.RoomRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
 @Service
 public class UnoService {
     private final RoomRepository roomRepo;
-    private final RoomPlayerRepository roomPlayerRepo;
-    private final MatchRepository matchRepo;
-    private final ObjectMapper mapper = new ObjectMapper();
-
-    public UnoService(RoomRepository roomRepo, RoomPlayerRepository roomPlayerRepo, MatchRepository matchRepo) {
+    private final GameStateManager gameStateManager;
+    private final GameDataManager gameDataManager;
+    public UnoService(RoomRepository roomRepo, 
+                     GameStateManager gameStateManager,
+                     GameDataManager gameDataManager) {
         this.roomRepo = roomRepo;
-        this.roomPlayerRepo = roomPlayerRepo;
-        this.matchRepo = matchRepo;
+        this.gameStateManager = gameStateManager;
+        this.gameDataManager = gameDataManager;
     }
 
     @Transactional
-    public Match startInRoom(long roomId, User starter) {
+    public Long startInRoom(long roomId, User starter) {
+        System.out.println("=== 开始游戏请求 ===");
+        System.out.println("房间ID: " + roomId + ", 发起者: " + starter.getUsername() + " (ID: " + starter.getId() + ")");
+        
         Room room = roomRepo.findById(roomId).orElseThrow(() -> new IllegalArgumentException("房间不存在"));
-        if (room.getOwner().getId() != starter.getId()) throw new IllegalArgumentException("仅房主可开局");
-        Game game = room.getGame();
-        if (!"UNO".equalsIgnoreCase(game.getCode())) throw new IllegalArgumentException("房间游戏不是 UNO");
-        List<RoomPlayer> players = roomPlayerRepo.findByRoom(room);
-        if (players.size() < Math.max(2, game.getMinPlayers())) throw new IllegalArgumentException("玩家不足");
-        List<Long> ids = players.stream().map(rp -> rp.getUser().getId()).toList();
-        UnoState s = UnoEngine.newGame(ids);
-        Match m = new Match();
-        m.setRoom(room);
-        m.setGame(game);
-        m.setStatus(Match.Status.playing);
-        m.setStartedAt(LocalDateTime.now());
-        m.setStateJson(writeJson(s));
-        return matchRepo.save(m);
-    }
-
-    @Transactional
-    public Map<String,Object> view(long matchId, long viewerId) {
-        Match m = matchRepo.findById(matchId).orElseThrow(() -> new IllegalArgumentException("对局不存在"));
-        UnoState s = readState(m.getStateJson());
-        return UnoEngine.publicView(s, viewerId);
-    }
-
-    @Transactional
-    public Map<String,Object> play(long matchId, User user, String card, String chooseColor) {
-        Match m = matchRepo.findById(matchId).orElseThrow(() -> new IllegalArgumentException("对局不存在"));
-        UnoState s = readState(m.getStateJson());
-        UnoEngine.play(s, user.getId(), card, chooseColor);
-        if (s.finished) {
-            m.setStatus(Match.Status.finished);
-            m.setWinner(null); // 简化：不回写 winner 用户对象
-            m.setEndedAt(LocalDateTime.now());
+        System.out.println("房间信息: " + room.getName() + ", 房主: " + room.getOwner().getUsername() + " (ID: " + room.getOwner().getId() + ")");
+        
+        if (!room.getOwner().getId().equals(starter.getId())) {
+            System.err.println("权限检查失败: 只有房主可以开始游戏");
+            throw new IllegalArgumentException("只有房主可以开始游戏");
         }
-        m.setStateJson(writeJson(s));
-        matchRepo.save(m);
-        return UnoEngine.publicView(s, user.getId());
+        
+        if (room.getStatus() != Room.Status.waiting) {
+            System.err.println("房间状态检查失败: 当前状态为 " + room.getStatus() + ", 需要 waiting 状态");
+            throw new IllegalArgumentException("房间状态不允许开始游戏");
+        }
+
+        // 从内存获取房间玩家列表
+        Map<Long, GameStateManager.PlayerRoomState> roomPlayers = gameStateManager.getRoomPlayers(roomId);
+        System.out.println("房间玩家数量: " + roomPlayers.size() + ", 玩家列表: " + roomPlayers.keySet());
+        
+        if (roomPlayers.size() < 2) {
+            System.err.println("玩家数量不足: 当前 " + roomPlayers.size() + " 人, 至少需要 2 人");
+            throw new IllegalArgumentException("至少需要2名玩家才能开始游戏");
+        }
+
+        // 生成唯一的 matchId（使用时间戳 + 房间ID）
+        Long matchId = System.currentTimeMillis() * 1000 + roomId;
+        System.out.println("生成对局ID: " + matchId);
+
+        // 创建初始游戏状态并存储到内存
+        System.out.println("正在加载卡牌数据...");
+        List<Map<String, Object>> cardDeck = gameDataManager.createCardDeck("uno");
+        System.out.println("卡牌数据加载完成, 总计: " + cardDeck.size() + " 张卡牌");
+        
+        System.out.println("正在创建初始游戏状态...");
+        UnoState initialState = UnoEngine.createInitialStateWithDeck(
+            roomPlayers.keySet().stream().toList(), // 使用玩家ID列表
+            cardDeck
+        );
+        System.out.println("初始游戏状态创建完成, 当前玩家: " + initialState.currentPlayer().userId);
+        
+        // 在内存中创建游戏会话
+        System.out.println("正在保存游戏状态到内存...");
+        gameStateManager.createGameState(matchId, "uno", initialState, roomId, roomPlayers.size());
+
+        // 更新房间状态
+        System.out.println("正在更新房间状态为 playing...");
+        room.setStatus(Room.Status.playing);
+        roomRepo.save(room);
+
+        System.out.println("=== 游戏开始成功 ===");
+        System.out.println("对局ID: " + matchId + ", 房间ID: " + roomId + ", 玩家数: " + roomPlayers.size());
+        return matchId;
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> view(long matchId, long viewerId) {
+        // 从内存获取游戏会话
+        gameStateManager.getGameSession(matchId)
+            .orElseThrow(() -> new IllegalArgumentException("游戏会话不存在"));
+        
+        // 从内存获取游戏状态
+        UnoState state = (UnoState) gameStateManager.getGameState(matchId)
+            .orElseThrow(() -> new IllegalArgumentException("游戏状态不存在"));
+        
+        return UnoEngine.publicView(state, viewerId);
     }
 
     @Transactional
-    public Map<String,Object> drawAndPass(long matchId, User user) {
-        Match m = matchRepo.findById(matchId).orElseThrow(() -> new IllegalArgumentException("对局不存在"));
-        UnoState s = readState(m.getStateJson());
-        UnoEngine.drawAndPass(s, user.getId());
-        m.setStateJson(writeJson(s));
-        matchRepo.save(m);
-        return UnoEngine.publicView(s, user.getId());
+    public Map<String, Object> play(long matchId, User player, String card, String chosenColor) {
+        // 从内存获取游戏会话
+        GameStateManager.GameStateData gameSession = gameStateManager.getGameSession(matchId)
+            .orElseThrow(() -> new IllegalArgumentException("游戏会话不存在"));
+        
+        if (!"playing".equals(gameSession.getStatus())) {
+            throw new IllegalArgumentException("游戏已结束");
+        }
+
+        // 从内存获取游戏状态
+        UnoState currentState = (UnoState) gameStateManager.getGameState(matchId)
+            .orElseThrow(() -> new IllegalArgumentException("游戏状态不存在"));
+
+        // 执行游戏逻辑
+        UnoState newState = UnoEngine.playCard(currentState, player.getId(), card, chosenColor);
+        
+        // 更新内存中的游戏状态
+        gameStateManager.updateGameState(matchId, newState);
+        
+        // 增加回合数
+        gameStateManager.incrementGameTurn(matchId);
+        
+        // 检查游戏是否结束
+        if (UnoEngine.isGameFinished(newState)) {
+            Long winnerId = UnoEngine.getWinner(newState);
+            gameStateManager.finishGame(matchId, "finished", winnerId);
+        }
+        
+        return UnoEngine.publicView(newState, player.getId());
     }
 
-    private String writeJson(UnoState s) {
-        try { return mapper.writeValueAsString(s); } catch (JsonProcessingException e) { throw new RuntimeException(e); }
-    }
-    private UnoState readState(String json) {
-        try { return mapper.readValue(json, UnoState.class); } catch (Exception e) { throw new RuntimeException(e); }
+    @Transactional
+    public Map<String, Object> drawAndPass(long matchId, User player) {
+        // 从内存获取游戏会话
+        GameStateManager.GameStateData gameSession = gameStateManager.getGameSession(matchId)
+            .orElseThrow(() -> new IllegalArgumentException("游戏会话不存在"));
+        
+        if (!"playing".equals(gameSession.getStatus())) {
+            throw new IllegalArgumentException("游戏已结束");
+        }
+
+        // 从内存获取游戏状态
+        UnoState currentState = (UnoState) gameStateManager.getGameState(matchId)
+            .orElseThrow(() -> new IllegalArgumentException("游戏状态不存在"));
+
+        // 执行摸牌逻辑
+        UnoState newState = UnoEngine.drawAndPass(currentState, player.getId());
+        
+        // 更新内存中的游戏状态
+        gameStateManager.updateGameState(matchId, newState);
+        
+        // 增加回合数
+        gameStateManager.incrementGameTurn(matchId);
+        
+        return UnoEngine.publicView(newState, player.getId());
     }
 }

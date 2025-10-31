@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>多用户 WebSocket 测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .user-panel { 
+            border: 1px solid #ccc; 
+            margin: 10px; 
+            padding: 15px; 
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .user1 { border-color: #007bff; background-color: #e7f3ff; }
+        .user2 { border-color: #28a745; background-color: #e8f5e9; }
+        .log { 
+            height: 200px; 
+            overflow-y: auto; 
+            border: 1px solid #ddd; 
+            padding: 10px; 
+            margin: 10px 0;
+            background-color: white;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button { margin: 5px; padding: 8px 12px; }
+        .status { 
+            padding: 5px 10px; 
+            border-radius: 3px; 
+            margin: 5px 0;
+            font-weight: bold;
+        }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .controls { margin: 10px 0; }
+        input { margin: 5px; padding: 5px; }
+    </style>
+</head>
+<body>
+    <h1>多用户 WebSocket 连接测试</h1>
+    <p>这个测试页面模拟两个用户同时连接和进入房间，用于验证修复效果。</p>
+    
+    <!-- 用户1面板 -->
+    <div class="user-panel user1">
+        <h3>用户1 (测试用户)</h3>
+        <div id="status1" class="status disconnected">未连接</div>
+        <div class="controls">
+            <button onclick="connectUser1()">连接</button>
+            <button onclick="disconnectUser1()">断开</button>
+            <button onclick="authUser1()">认证</button>
+            <button onclick="joinRoomUser1()">加入房间1</button>
+            <button onclick="clearLog1()">清空日志</button>
+        </div>
+        <div>
+            <input type="text" id="token1" placeholder="认证令牌" value="test-token-1">
+            <input type="number" id="roomId1" placeholder="房间ID" value="1">
+        </div>
+        <div id="log1" class="log"></div>
+    </div>
+    
+    <!-- 用户2面板 -->
+    <div class="user-panel user2">
+        <h3>用户2 (测试用户)</h3>
+        <div id="status2" class="status disconnected">未连接</div>
+        <div class="controls">
+            <button onclick="connectUser2()">连接</button>
+            <button onclick="disconnectUser2()">断开</button>
+            <button onclick="authUser2()">认证</button>
+            <button onclick="joinRoomUser2()">加入房间1</button>
+            <button onclick="clearLog2()">清空日志</button>
+        </div>
+        <div>
+            <input type="text" id="token2" placeholder="认证令牌" value="test-token-2">
+            <input type="number" id="roomId2" placeholder="房间ID" value="1">
+        </div>
+        <div id="log2" class="log"></div>
+    </div>
+    
+    <div class="controls">
+        <button onclick="testSequence()">自动测试序列</button>
+        <button onclick="clearAllLogs()">清空所有日志</button>
+    </div>
+    
+    <script>
+        let ws1 = null;
+        let ws2 = null;
+        
+        function log(userId, message, type = 'info') {
+            const logDiv = document.getElementById(`log${userId}`);
+            const time = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            logDiv.innerHTML += `<div style="color: ${color}">[${time}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function updateStatus(userId, connected) {
+            const statusDiv = document.getElementById(`status${userId}`);
+            if (connected) {
+                statusDiv.textContent = '已连接';
+                statusDiv.className = 'status connected';
+            } else {
+                statusDiv.textContent = '未连接';
+                statusDiv.className = 'status disconnected';
+            }
+        }
+        
+        function connectUser1() {
+            if (ws1 && ws1.readyState === WebSocket.OPEN) {
+                log(1, '已经连接', 'error');
+                return;
+            }
+            
+            ws1 = new WebSocket('ws://localhost:50000/ws');
+            
+            ws1.onopen = function() {
+                log(1, '✅ WebSocket 连接成功', 'success');
+                updateStatus(1, true);
+            };
+            
+            ws1.onmessage = function(event) {
+                log(1, `📥 收到消息: ${event.data}`, 'success');
+            };
+            
+            ws1.onerror = function(error) {
+                log(1, `❌ WebSocket 错误: ${error}`, 'error');
+            };
+            
+            ws1.onclose = function(event) {
+                log(1, `🔌 连接关闭: ${event.code} - ${event.reason}`, 'error');
+                updateStatus(1, false);
+            };
+        }
+        
+        function connectUser2() {
+            if (ws2 && ws2.readyState === WebSocket.OPEN) {
+                log(2, '已经连接', 'error');
+                return;
+            }
+            
+            ws2 = new WebSocket('ws://localhost:50000/ws');
+            
+            ws2.onopen = function() {
+                log(2, '✅ WebSocket 连接成功', 'success');
+                updateStatus(2, true);
+            };
+            
+            ws2.onmessage = function(event) {
+                log(2, `📥 收到消息: ${event.data}`, 'success');
+            };
+            
+            ws2.onerror = function(error) {
+                log(2, `❌ WebSocket 错误: ${error}`, 'error');
+            };
+            
+            ws2.onclose = function(event) {
+                log(2, `🔌 连接关闭: ${event.code} - ${event.reason}`, 'error');
+                updateStatus(2, false);
+            };
+        }
+        
+        function disconnectUser1() {
+            if (ws1) {
+                ws1.close();
+                ws1 = null;
+                updateStatus(1, false);
+                log(1, '主动断开连接');
+            }
+        }
+        
+        function disconnectUser2() {
+            if (ws2) {
+                ws2.close();
+                ws2 = null;
+                updateStatus(2, false);
+                log(2, '主动断开连接');
+            }
+        }
+        
+        function authUser1() {
+            if (!ws1 || ws1.readyState !== WebSocket.OPEN) {
+                log(1, '请先连接 WebSocket', 'error');
+                return;
+            }
+            
+            const token = document.getElementById('token1').value;
+            const message = {
+                kind: 'cmd',
+                type: 'auth',
+                data: { token: token },
+                cid: 'auth-user1-' + Date.now()
+            };
+            
+            ws1.send(JSON.stringify(message));
+            log(1, `📤 发送认证消息: ${JSON.stringify(message)}`);
+        }
+        
+        function authUser2() {
+            if (!ws2 || ws2.readyState !== WebSocket.OPEN) {
+                log(2, '请先连接 WebSocket', 'error');
+                return;
+            }
+            
+            const token = document.getElementById('token2').value;
+            const message = {
+                kind: 'cmd',
+                type: 'auth',
+                data: { token: token },
+                cid: 'auth-user2-' + Date.now()
+            };
+            
+            ws2.send(JSON.stringify(message));
+            log(2, `📤 发送认证消息: ${JSON.stringify(message)}`);
+        }
+        
+        function joinRoomUser1() {
+            if (!ws1 || ws1.readyState !== WebSocket.OPEN) {
+                log(1, '请先连接 WebSocket', 'error');
+                return;
+            }
+            
+            const roomId = parseInt(document.getElementById('roomId1').value);
+            const message = {
+                kind: 'cmd',
+                type: 'room.join',
+                data: { roomId: roomId },
+                cid: 'join-room-user1-' + Date.now()
+            };
+            
+            ws1.send(JSON.stringify(message));
+            log(1, `📤 发送加入房间消息: ${JSON.stringify(message)}`);
+        }
+        
+        function joinRoomUser2() {
+            if (!ws2 || ws2.readyState !== WebSocket.OPEN) {
+                log(2, '请先连接 WebSocket', 'error');
+                return;
+            }
+            
+            const roomId = parseInt(document.getElementById('roomId2').value);
+            const message = {
+                kind: 'cmd',
+                type: 'room.join',
+                data: { roomId: roomId },
+                cid: 'join-room-user2-' + Date.now()
+            };
+            
+            ws2.send(JSON.stringify(message));
+            log(2, `📤 发送加入房间消息: ${JSON.stringify(message)}`);
+        }
+        
+        function clearLog1() {
+            document.getElementById('log1').innerHTML = '';
+        }
+        
+        function clearLog2() {
+            document.getElementById('log2').innerHTML = '';
+        }
+        
+        function clearAllLogs() {
+            clearLog1();
+            clearLog2();
+        }
+        
+        function testSequence() {
+            log(1, '🚀 开始自动测试序列', 'success');
+            log(2, '🚀 开始自动测试序列', 'success');
+            
+            // 步骤1: 连接用户1
+            setTimeout(() => {
+                log(1, '步骤1: 连接用户1');
+                connectUser1();
+            }, 500);
+            
+            // 步骤2: 连接用户2
+            setTimeout(() => {
+                log(2, '步骤2: 连接用户2');
+                connectUser2();
+            }, 1500);
+            
+            // 步骤3: 用户1认证（使用无效令牌测试错误处理）
+            setTimeout(() => {
+                log(1, '步骤3: 用户1认证');
+                authUser1();
+            }, 3000);
+            
+            // 步骤4: 用户2认证（使用无效令牌测试错误处理）
+            setTimeout(() => {
+                log(2, '步骤4: 用户2认证');
+                authUser2();
+            }, 4000);
+            
+            // 步骤5: 用户1尝试加入房间（应该失败，因为未认证）
+            setTimeout(() => {
+                log(1, '步骤5: 用户1尝试加入房间');
+                joinRoomUser1();
+            }, 5500);
+            
+            // 步骤6: 用户2尝试加入房间（应该失败，因为未认证）
+            setTimeout(() => {
+                log(2, '步骤6: 用户2尝试加入房间');
+                joinRoomUser2();
+            }, 6500);
+            
+            setTimeout(() => {
+                log(1, '✅ 测试序列完成！检查是否有连接中断错误', 'success');
+                log(2, '✅ 测试序列完成！检查是否有连接中断错误', 'success');
+            }, 8000);
+        }
+    </script>
+</body>
+</html>

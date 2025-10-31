@@ -1,0 +1,98 @@
+# UNO 游戏配置文件
+# 基于标准UNO规则，简化版本，适合新手玩家
+
+# 游戏基本信息
+gameInfo:
+  name: "UNO"
+  version: "1.0"
+  description: "UNO纸牌游戏"
+
+# 玩家数量限制
+playerLimits:
+  minPlayers: 2        # 最少玩家数
+  maxPlayers: 8        # 最多玩家数
+  recommendedPlayers: 4 # 推荐玩家数
+
+# 游戏规则配置
+gameRules:
+  initialHandSize: 7    # 初始手牌数量（标准规则）
+  maxHandSize: 30       # 最大手牌数量限制（防止异常）
+  drawPenalty: 1        # 无法出牌时摸牌数量
+  
+  # 简化规则 - 不支持复杂叠加
+  stackDraw2: true      # 允许+2叠加
+  stackDraw4: false     # +4不能叠加（封顶牌）
+  jumpIn: false         # 不支持跳入
+  sevenSwap: false      # 不支持7号交换
+  zeroRotate: false     # 不支持0号轮转
+
+# 卡牌效果定义
+cardEffects:
+  # 禁止牌（跳过牌）
+  skip:
+    effect: "skip_next_player"  # 禁止下一个玩家出牌
+    stackable: true             # 可以连禁
+    
+  # 反转牌  
+  reverse:
+    effect: "reverse_direction" # 反转游戏方向（多人）/ 相当于禁止牌（2人）
+    stackable: false            # 不可叠加
+    
+  # +2牌
+  draw2:
+    effect: "draw_cards"        # 摸牌效果
+    amount: 2                   # 摸牌数量
+    stackable: true             # 可以叠加
+    
+  # 万能牌
+  wild:
+    effect: "change_color"      # 改变颜色
+    stackable: false            # 不可叠加
+    
+  # +4万能牌（王牌）
+  wild_draw4:
+    effect: "change_color_and_draw" # 改变颜色并摸牌
+    amount: 4                       # 摸牌数量
+    stackable: false                # 封顶牌，不可叠加
+    challengeable: true             # 可以质疑
+
+# 计分系统（单局游戏）
+scoring:
+  enabled: false                # 不启用计分（单局游戏）
+  pointValues:                  # 各卡牌分值（备用）
+    number: "face_value"        # 数字牌按面值计分
+    skip: 20                    # 禁止牌20分
+    reverse: 20                 # 反转牌20分
+    draw2: 20                   # +2牌20分
+    wild: 50                    # 万能牌50分
+    wild_draw4: 50              # +4万能牌50分
+    
+  winCondition:                 # 胜利条件
+    type: "first_to_empty"      # 首先出完牌获胜
+
+# 时间限制
+timing:
+  turnTimeoutSeconds: 30        # 单回合时间限制（秒）
+  gameTimeoutMinutes: 30        # 游戏总时间限制（分钟）
+  idleKickMinutes: 5            # 空闲踢出时间（分钟）
+
+# 功能特性
+features:
+  chat: true                    # 支持聊天
+  spectators: true              # 支持观战
+  reconnect: true               # 支持重连
+  pauseGame: false              # 不支持暂停游戏
+  undoMove: false               # 不支持撤销操作
+
+# 规则验证
+validation:
+  strictRules: true             # 严格执行规则
+  allowInvalidMoves: false      # 不允许无效操作
+  autoDrawOnInvalid: true       # 无效操作时自动摸牌
+  
+# UNO特殊规则
+unoRules:
+  mustCallUno: true             # 剩最后一张牌必须喊UNO
+  unoPenalty: 2                 # 忘记喊UNO的罚牌数
+  challengeWild4: true          # 允许质疑+4万能牌
+  challengePenalty: 6           # 质疑失败的罚牌数（4+2）

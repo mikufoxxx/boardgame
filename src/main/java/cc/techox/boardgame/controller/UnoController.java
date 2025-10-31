@@ -1,11 +1,11 @@
 package cc.techox.boardgame.controller;
 
-import cc.techox.boardgame.model.Match;
+import cc.techox.boardgame.common.ApiResponse;
 import cc.techox.boardgame.model.User;
 import cc.techox.boardgame.service.AuthService;
 import cc.techox.boardgame.service.UnoService;
-import cc.techox.boardgame.websocket.GameEventPublisher;
-import org.springframework.http.ResponseEntity;
+import cc.techox.boardgame.util.AuthUtil;
+import cc.techox.boardgame.websocket.GameEventBroadcaster;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -15,48 +15,58 @@ import java.util.Map;
 public class UnoController {
     private final UnoService unoService;
     private final AuthService authService;
-    private final GameEventPublisher eventPublisher;
+    private final GameEventBroadcaster eventBroadcaster;
 
-    public UnoController(UnoService unoService, AuthService authService, GameEventPublisher eventPublisher) {
+    public UnoController(UnoService unoService, AuthService authService, GameEventBroadcaster eventBroadcaster) {
         this.unoService = unoService;
         this.authService = authService;
-        this.eventPublisher = eventPublisher;
+        this.eventBroadcaster = eventBroadcaster;
     }
 
-    private User authed(String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) throw new IllegalArgumentException("缺少令牌");
-        String token = authHeader.substring(7);
-        return authService.getUserByToken(token).orElseThrow(() -> new IllegalArgumentException("无效令牌"));
-    }
-
+    /**
+     * 开始游戏 - 仅限房主操作
+     */
     @PostMapping("/rooms/{roomId}/start")
-    public ResponseEntity<?> start(@PathVariable long roomId, @RequestHeader(value = "Authorization", required = false) String auth) {
-        User u = authed(auth);
-        Match match = unoService.startInRoom(roomId, u);
-        
-        // 发布游戏开始事件，触发WebSocket推送
-        eventPublisher.publishGameStarted(roomId, match.getId());
-        
-        return ResponseEntity.ok(unoService.view(match.getId(), u.getId()));
+    public ApiResponse<?> start(@PathVariable long roomId, @RequestHeader(value = "Authorization", required = false) String auth) {
+        try {
+            System.out.println("=== HTTP 开始游戏请求 ===");
+            System.out.println("请求路径: POST /api/uno/rooms/" + roomId + "/start");
+            
+            User u = AuthUtil.requireAuth(auth, authService);
+            System.out.println("认证用户: " + u.getUsername() + " (ID: " + u.getId() + ")");
+            
+            Long matchId = unoService.startInRoom(roomId, u);
+            System.out.println("UnoService.startInRoom 执行成功, 返回 matchId: " + matchId);
+            
+            // 直接调用广播器发布游戏开始事件
+            System.out.println("正在广播游戏开始事件...");
+            eventBroadcaster.broadcastGameStarted(roomId, matchId);
+            System.out.println("游戏开始事件广播完成");
+            
+            System.out.println("=== HTTP 响应成功 ===");
+            return ApiResponse.ok("游戏已开始", Map.of("matchId", matchId));
+        } catch (IllegalArgumentException e) {
+            System.err.println("开始游戏失败 (参数错误): " + e.getMessage());
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            System.err.println("开始游戏失败 (系统错误): " + e.getMessage());
+            e.printStackTrace();
+            return ApiResponse.error("开始游戏失败: " + e.getMessage());
+        }
     }
 
+    /**
+     * 查看游戏状态 - 仅用于调试或初始加载
+     */
     @GetMapping("/matches/{id}")
-    public ResponseEntity<?> view(@PathVariable long id, @RequestHeader(value = "Authorization", required = false) String auth) {
-        User u = authed(auth);
-        return ResponseEntity.ok(unoService.view(id, u.getId()));
-    }
-
-    @PostMapping("/matches/{id}/play")
-    public ResponseEntity<?> play(@PathVariable long id, @RequestBody Map<String,String> body, @RequestHeader(value = "Authorization", required = false) String auth) {
-        User u = authed(auth);
-        String card = body.get("card");
-        String color = body.get("color");
-        return ResponseEntity.ok(unoService.play(id, u, card, color));
-    }
-
-    @PostMapping("/matches/{id}/draw-pass")
-    public ResponseEntity<?> drawPass(@PathVariable long id, @RequestHeader(value = "Authorization", required = false) String auth) {
-        User u = authed(auth);
-        return ResponseEntity.ok(unoService.drawAndPass(id, u));
+    public ApiResponse<?> view(@PathVariable long id, @RequestHeader(value = "Authorization", required = false) String auth) {
+        try {
+            User u = AuthUtil.requireAuth(auth, authService);
+            return ApiResponse.ok("ok", unoService.view(id, u.getId()));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("获取游戏状态失败: " + e.getMessage());
+        }
     }
 }

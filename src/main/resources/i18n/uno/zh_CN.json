@@ -1,0 +1,64 @@
+{
+  "cards": {
+    "red_0": "红色0", "red_1": "红色1", "red_2": "红色2", "red_3": "红色3", "red_4": "红色4",
+    "red_5": "红色5", "red_6": "红色6", "red_7": "红色7", "red_8": "红色8", "red_9": "红色9",
+    "red_skip": "红色跳过", "red_reverse": "红色反转", "red_draw2": "红色+2",
+    
+    "blue_0": "蓝色0", "blue_1": "蓝色1", "blue_2": "蓝色2", "blue_3": "蓝色3", "blue_4": "蓝色4",
+    "blue_5": "蓝色5", "blue_6": "蓝色6", "blue_7": "蓝色7", "blue_8": "蓝色8", "blue_9": "蓝色9",
+    "blue_skip": "蓝色跳过", "blue_reverse": "蓝色反转", "blue_draw2": "蓝色+2",
+    
+    "green_0": "绿色0", "green_1": "绿色1", "green_2": "绿色2", "green_3": "绿色3", "green_4": "绿色4",
+    "green_5": "绿色5", "green_6": "绿色6", "green_7": "绿色7", "green_8": "绿色8", "green_9": "绿色9",
+    "green_skip": "绿色跳过", "green_reverse": "绿色反转", "green_draw2": "绿色+2",
+    
+    "yellow_0": "黄色0", "yellow_1": "黄色1", "yellow_2": "黄色2", "yellow_3": "黄色3", "yellow_4": "黄色4",
+    "yellow_5": "黄色5", "yellow_6": "黄色6", "yellow_7": "黄色7", "yellow_8": "黄色8", "yellow_9": "黄色9",
+    "yellow_skip": "黄色跳过", "yellow_reverse": "黄色反转", "yellow_draw2": "黄色+2",
+    
+    "wild": "万能牌", "wild_draw4": "万能+4"
+  },
+  "colors": {
+    "red": "红色", "blue": "蓝色", "green": "绿色", "yellow": "黄色", "wild": "万能"
+  },
+  "actions": {
+    "skip": "跳过", "reverse": "反转", "draw2": "+2", "wild": "变色", "wild_draw4": "变色+4"
+  },
+  "messages": {
+    "game_start": "游戏开始！",
+    "game_end": "游戏结束！",
+    "your_turn": "轮到你了！",
+    "player_turn": "{player}的回合",
+    "card_played": "{player}出了{card}",
+    "card_drawn": "{player}摸了{count}张牌",
+    "player_skipped": "{player}被跳过",
+    "direction_reversed": "方向反转",
+    "color_changed": "颜色变为{color}",
+    "player_uno": "{player}喊UNO！",
+    "player_wins": "{player}获胜！",
+    "invalid_move": "无效操作",
+    "must_draw": "必须摸牌",
+    "choose_color": "请选择颜色"
+  },
+  "errors": {
+    "not_your_turn": "还没轮到你",
+    "invalid_card": "无效的卡牌",
+    "card_not_found": "找不到该卡牌",
+    "game_not_found": "游戏不存在",
+    "game_finished": "游戏已结束",
+    "player_not_in_game": "你不在游戏中"
+  },
+  "ui": {
+    "hand": "手牌",
+    "deck": "牌库",
+    "discard": "弃牌堆",
+    "current_player": "当前玩家",
+    "direction": "方向",
+    "color": "颜色",
+    "play_card": "出牌",
+    "draw_card": "摸牌",
+    "pass": "跳过",
+    "uno": "UNO",
+    "challenge": "质疑"
+  }
+}

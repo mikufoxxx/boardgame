@@ -6,6 +6,7 @@ import cc.techox.boardgame.dto.RegisterRequest;
 import cc.techox.boardgame.dto.UpdateProfileRequest;
 import cc.techox.boardgame.model.User;
 import cc.techox.boardgame.service.AuthService;
+import cc.techox.boardgame.util.AuthUtil;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -42,34 +43,41 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ApiResponse<?> logout(@RequestHeader(name = "Authorization", required = false) String authHeader) {
-        String token = parseBearer(authHeader);
-        if (token == null) return ApiResponse.error("未提供令牌");
-        authService.logout(token);
-        return ApiResponse.ok("注销成功", null);
+        try {
+            String token = AuthUtil.parseBearer(authHeader);
+            if (token == null) return ApiResponse.error("未提供令牌");
+            authService.logout(token);
+            return ApiResponse.ok("注销成功", null);
+        } catch (Exception e) {
+            return ApiResponse.error("注销失败: " + e.getMessage());
+        }
     }
 
-    @PutMapping("/profile")
+    @PostMapping("/profile")
     public ApiResponse<?> updateProfile(@RequestHeader(name = "Authorization", required = false) String authHeader,
                                         @RequestBody UpdateProfileRequest req) {
-        String token = parseBearer(authHeader);
-        if (token == null) return ApiResponse.error("未提供令牌");
-        
-        User user = authService.getUserByToken(token).orElse(null);
-        if (user == null) return ApiResponse.error("未登录或令牌无效");
-        
         try {
-            User updatedUser = authService.updateProfile(user, req.getDisplayName(), req.getCurrentPassword(), req.getNewPassword());
-            return ApiResponse.ok("修改成功", new UserInfo(updatedUser));
+            User user = AuthUtil.requireAuth(authHeader, authService);
+            User updated = authService.updateProfile(user, req.getDisplayName(), req.getCurrentPassword(), req.getNewPassword());
+            return ApiResponse.ok("个人信息更新成功", new UserInfo(updated));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("更新个人信息失败: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/me")
+    public ApiResponse<?> getCurrentUser(@RequestHeader(name = "Authorization", required = false) String authHeader) {
+        try {
+            User user = AuthUtil.requireAuth(authHeader, authService);
+            return ApiResponse.ok("ok", new UserInfo(user));
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(e.getMessage());
         }
     }
 
-    private String parseBearer(String h) {
-        if (h == null) return null;
-        if (h.toLowerCase().startsWith("bearer ")) return h.substring(7).trim();
-        return null;
-    }
+
 
     static class UserInfo {
         public Long id;

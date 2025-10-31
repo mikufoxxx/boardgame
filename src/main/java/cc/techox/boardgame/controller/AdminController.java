@@ -9,6 +9,7 @@ import cc.techox.boardgame.model.*;
 import cc.techox.boardgame.repo.*;
 import cc.techox.boardgame.service.AuthService;
 import cc.techox.boardgame.service.RoomService;
+import cc.techox.boardgame.util.AuthUtil;
 import cc.techox.boardgame.util.HashUtil;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -71,16 +72,8 @@ public class AdminController {
         }
     }
 
-    private String parseBearer(String h) {
-        if (h == null) return null;
-        if (h.toLowerCase().startsWith("bearer ")) return h.substring(7).trim();
-        return null;
-    }
-
-    private Optional<User> requireAdmin(String authHeader) {
-        String token = parseBearer(authHeader);
-        if (token == null) return Optional.empty();
-        return authService.getUserByToken(token).filter(u -> u.getRole() == User.Role.admin);
+    private User requireAdmin(String authHeader) {
+        return AuthUtil.requireAdmin(authHeader, authService);
     }
 
     private void audit(User operator, String action, String targetType, Long targetId, String detail) {
@@ -100,42 +93,47 @@ public class AdminController {
     @PostMapping("/invite-codes")
     public ApiResponse<?> createInviteCodes(@RequestHeader(name = "Authorization", required = false) String authHeader,
                                             @RequestBody CreateInviteCodesRequest req) {
-        User admin = requireAdmin(authHeader).orElse(null);
-        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
-        int count = Math.max(0, req.getCount());
-        if (count <= 0 || count > 500) return ApiResponse.error("生成数量必须在 1-500 之间");
-        String batchNo = (req.getBatchNo() == null || req.getBatchNo().isBlank())
-                ? "B" + LocalDateTime.now().toString().replace("-", "").replace(":", "").replace(".", "")
-                : req.getBatchNo();
-        LocalDateTime expiresAt = null;
-        if (req.getExpiresDays() != null && req.getExpiresDays() > 0) {
-            expiresAt = LocalDateTime.now().plusDays(req.getExpiresDays());
+        try {
+            User admin = AuthUtil.requireAdmin(authHeader, authService);
+            int count = Math.max(0, req.getCount());
+            if (count <= 0 || count > 500) return ApiResponse.error("生成数量必须在 1-500 之间");
+            String batchNo = (req.getBatchNo() == null || req.getBatchNo().isBlank())
+                    ? "B" + LocalDateTime.now().toString().replace("-", "").replace(":", "").replace(".", "")
+                    : req.getBatchNo();
+            LocalDateTime expiresAt = null;
+            if (req.getExpiresDays() != null && req.getExpiresDays() > 0) {
+                expiresAt = LocalDateTime.now().plusDays(req.getExpiresDays());
+            }
+            List<String> created = new ArrayList<>();
+            for (int i = 0; i < count; i++) {
+                String code;
+                int tries = 0;
+                do {
+                    code = randomCode();
+                    tries++;
+                    if (tries > 2000) return ApiResponse.error("生成唯一邀请码超时");
+                } while (inviteRepo.existsByCode(code));
+                InviteCode ic = new InviteCode();
+                ic.setCode(code);
+                ic.setUsed(false);
+                ic.setCreatedBy(admin);
+                ic.setCreatedAt(LocalDateTime.now());
+                ic.setBatchNo(batchNo);
+                ic.setExpiresAt(expiresAt);
+                inviteRepo.save(ic);
+                created.add(code);
+            }
+            audit(admin, "create_invite_codes", "InviteCodeBatch", null, "batch=" + batchNo + ", count=" + count);
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("batchNo", batchNo);
+            resp.put("codes", created);
+            resp.put("expiresAt", expiresAt == null ? null : expiresAt.toString());
+            return ApiResponse.ok("生成成功", resp);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("创建邀请码失败: " + e.getMessage());
         }
-        List<String> created = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            String code;
-            int tries = 0;
-            do {
-                code = randomCode();
-                tries++;
-                if (tries > 2000) return ApiResponse.error("生成唯一邀请码超时");
-            } while (inviteRepo.existsByCode(code));
-            InviteCode ic = new InviteCode();
-            ic.setCode(code);
-            ic.setUsed(false);
-            ic.setCreatedBy(admin);
-            ic.setCreatedAt(LocalDateTime.now());
-            ic.setBatchNo(batchNo);
-            ic.setExpiresAt(expiresAt);
-            inviteRepo.save(ic);
-            created.add(code);
-        }
-        audit(admin, "create_invite_codes", "InviteCodeBatch", null, "batch=" + batchNo + ", count=" + count);
-        Map<String, Object> resp = new HashMap<>();
-        resp.put("batchNo", batchNo);
-        resp.put("codes", created);
-        resp.put("expiresAt", expiresAt == null ? null : expiresAt.toString());
-        return ApiResponse.ok("生成成功", resp);
     }
 
     // 查询邀请码列表
@@ -145,8 +143,8 @@ public class AdminController {
                                           @RequestParam(name = "size", defaultValue = "20") int size,
                                           @RequestParam(name = "status", required = false) String status,
                                           @RequestParam(name = "batchNo", required = false) String batchNo) {
-        User admin = requireAdmin(authHeader).orElse(null);
-        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        try {
+            AuthUtil.requireAdmin(authHeader, authService);
         
         size = Math.min(size, 200);
         Pageable pageable = PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -176,13 +174,18 @@ public class AdminController {
         resp.put("total", invitePage.getTotalElements());
         resp.put("items", items);
         return ApiResponse.ok("ok", resp);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("查询邀请码列表失败: " + e.getMessage());
+        }
     }
 
     // 管理员邀请码统计
     @GetMapping("/invite-codes/stats")
     public ApiResponse<?> getInviteCodeStats(@RequestHeader(name = "Authorization", required = false) String authHeader) {
-        User admin = requireAdmin(authHeader).orElse(null);
-        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        try {
+            AuthUtil.requireAdmin(authHeader, authService);
         
         Map<String, Object> stats = new HashMap<>();
         
@@ -227,6 +230,11 @@ public class AdminController {
         stats.put("summary", totalStats);
         
         return ApiResponse.ok("ok", stats);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("获取邀请码统计失败: " + e.getMessage());
+        }
     }
 
     private static final char[] CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".toCharArray();
@@ -248,8 +256,8 @@ public class AdminController {
                                     @RequestParam(name = "role", required = false) String role,
                                     @RequestParam(name = "status", required = false) String status,
                                     @RequestParam(name = "search", required = false) String search) {
-        User admin = requireAdmin(authHeader).orElse(null);
-        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        try {
+            AuthUtil.requireAdmin(authHeader, authService);
         
         if (size > 200) size = 200;
         if (page < 1) page = 1;
@@ -307,13 +315,18 @@ public class AdminController {
         resp.put("total", pg.getTotalElements());
         resp.put("items", pg.getContent().stream().map(UserInfo::new).toList());
         return ApiResponse.ok("ok", resp);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("查询用户列表失败: " + e.getMessage());
+        }
     }
 
     // 管理员用户统计
     @GetMapping("/users/stats")
     public ApiResponse<?> getUserStats(@RequestHeader(name = "Authorization", required = false) String authHeader) {
-        User admin = requireAdmin(authHeader).orElse(null);
-        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        try {
+            AuthUtil.requireAdmin(authHeader, authService);
         
         Map<String, Object> stats = new HashMap<>();
         
@@ -338,14 +351,19 @@ public class AdminController {
         stats.put("total", totalUsers);
         
         return ApiResponse.ok("ok", stats);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("获取用户统计失败: " + e.getMessage());
+        }
     }
 
     // 创建用户
     @PostMapping("/users")
     public ApiResponse<?> createUser(@RequestHeader(name = "Authorization", required = false) String authHeader,
                                      @RequestBody CreateUserRequest req) {
-        User admin = requireAdmin(authHeader).orElse(null);
-        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        try {
+            User admin = requireAdmin(authHeader);
         if (req.getUsername() == null || req.getUsername().isBlank() || req.getPassword() == null || req.getPassword().isBlank()) {
             return ApiResponse.error("用户名与密码不能为空");
         }
@@ -364,6 +382,11 @@ public class AdminController {
         userRepo.save(u);
         audit(admin, "create_user", "User", u.getId(), "username=" + u.getUsername() + ", role=" + u.getRole());
         return ApiResponse.ok("创建成功", new UserInfo(u));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("创建用户失败: " + e.getMessage());
+        }
     }
 
     // 更新角色
@@ -371,8 +394,8 @@ public class AdminController {
     public ApiResponse<?> updateUserRole(@RequestHeader(name = "Authorization", required = false) String authHeader,
                                          @PathVariable("id") Long id,
                                          @RequestBody UpdateUserRoleRequest req) {
-        User admin = requireAdmin(authHeader).orElse(null);
-        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        try {
+            User admin = requireAdmin(authHeader);
         Optional<User> opt = userRepo.findById(id);
         if (opt.isEmpty()) return ApiResponse.error("用户不存在");
         User u = opt.get();
@@ -386,6 +409,11 @@ public class AdminController {
         userRepo.save(u);
         audit(admin, "update_user_role", "User", u.getId(), "role=" + newRole);
         return ApiResponse.ok("更新成功", new UserInfo(u));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("更新用户角色失败: " + e.getMessage());
+        }
     }
 
     // 重置密码
@@ -393,8 +421,8 @@ public class AdminController {
     public ApiResponse<?> resetPassword(@RequestHeader(name = "Authorization", required = false) String authHeader,
                                         @PathVariable("id") Long id,
                                         @RequestBody UpdateUserPasswordRequest req) {
-        User admin = requireAdmin(authHeader).orElse(null);
-        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        try {
+            User admin = requireAdmin(authHeader);
         Optional<User> opt = userRepo.findById(id);
         if (opt.isEmpty()) return ApiResponse.error("用户不存在");
         if (req.getPassword() == null || req.getPassword().isBlank()) return ApiResponse.error("密码不能为空");
@@ -406,14 +434,19 @@ public class AdminController {
         try { sessionRepo.deleteByUser(u); } catch (Exception ignored) {}
         audit(admin, "reset_user_password", "User", u.getId(), null);
         return ApiResponse.ok("重置成功", new UserInfo(u));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("重置密码失败: " + e.getMessage());
+        }
     }
 
     // 删除用户
     @DeleteMapping("/users/{id}")
     public ApiResponse<?> deleteUser(@RequestHeader(name = "Authorization", required = false) String authHeader,
                                      @PathVariable("id") Long id) {
-        User admin = requireAdmin(authHeader).orElse(null);
-        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        try {
+            User admin = requireAdmin(authHeader);
         Optional<User> opt = userRepo.findById(id);
         if (opt.isEmpty()) return ApiResponse.error("用户不存在");
         User u = opt.get();
@@ -425,6 +458,11 @@ public class AdminController {
         userRepo.delete(u);
         audit(admin, "delete_user", "User", id, null);
         return ApiResponse.ok("删除成功", null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("删除用户失败: " + e.getMessage());
+        }
     }
 
     // 审计日志分页
@@ -432,8 +470,8 @@ public class AdminController {
     public ApiResponse<?> listAuditLogs(@RequestHeader(name = "Authorization", required = false) String authHeader,
                                         @RequestParam(name = "page", defaultValue = "1") int page,
                                         @RequestParam(name = "size", defaultValue = "20") int size) {
-        User admin = requireAdmin(authHeader).orElse(null);
-        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        try {
+            AuthUtil.requireAdmin(authHeader, authService);
         page = Math.max(1, page);
         size = Math.min(200, Math.max(1, size));
         Pageable pageable = PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "id"));
@@ -444,6 +482,11 @@ public class AdminController {
         resp.put("total", pg.getTotalElements());
         resp.put("items", pg.getContent().stream().map(AdminAuditInfo::new).toList());
         return ApiResponse.ok("ok", resp);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("查询审计日志失败: " + e.getMessage());
+        }
     }
 
     // 管理员查询房间列表
@@ -454,8 +497,8 @@ public class AdminController {
                                     @RequestParam(name = "status", required = false) String status,
                                     @RequestParam(name = "gameCode", required = false) String gameCode,
                                     @RequestParam(name = "name", required = false) String name) {
-        User admin = requireAdmin(authHeader).orElse(null);
-        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        try {
+            AuthUtil.requireAdmin(authHeader, authService);
         
         if (size > 200) size = 200;
         if (page < 1) page = 1;
@@ -512,13 +555,18 @@ public class AdminController {
         resp.put("total", pg.getTotalElements());
         resp.put("items", pg.getContent().stream().map(RoomInfo::new).toList());
         return ApiResponse.ok("ok", resp);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("查询房间列表失败: " + e.getMessage());
+        }
     }
 
     // 管理员房间统计
     @GetMapping("/rooms/stats")
     public ApiResponse<?> getRoomStats(@RequestHeader(name = "Authorization", required = false) String authHeader) {
-        User admin = requireAdmin(authHeader).orElse(null);
-        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
+        try {
+            AuthUtil.requireAdmin(authHeader, authService);
         
         Map<String, Object> stats = new HashMap<>();
         
@@ -543,18 +591,28 @@ public class AdminController {
         stats.put("total", totalRooms);
         
         return ApiResponse.ok("ok", stats);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("获取房间统计失败: " + e.getMessage());
+        }
     }
 
     // 管理员删除房间
     @DeleteMapping("/rooms/{id}")
     public ApiResponse<?> deleteRoom(@RequestHeader(name = "Authorization", required = false) String authHeader,
                                      @PathVariable("id") Long id) {
-        User admin = requireAdmin(authHeader).orElse(null);
-        if (admin == null) return ApiResponse.error("权限不足或令牌无效");
-        boolean ok = roomService.adminDeleteRoom(id);
-        if (!ok) return ApiResponse.error("房间不存在");
-        audit(admin, "delete_room", "Room", id, null);
-        return ApiResponse.ok("删除成功", null);
+        try {
+            User admin = requireAdmin(authHeader);
+            boolean ok = roomService.adminDeleteRoom(id, admin);
+            if (!ok) return ApiResponse.error("房间不存在");
+            audit(admin, "delete_room", "Room", id, null);
+            return ApiResponse.ok("删除成功", null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("删除房间失败: " + e.getMessage());
+        }
     }
 
     // -------- DTOs --------

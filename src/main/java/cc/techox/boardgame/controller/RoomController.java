@@ -6,6 +6,7 @@ import cc.techox.boardgame.model.Room;
 import cc.techox.boardgame.model.User;
 import cc.techox.boardgame.service.AuthService;
 import cc.techox.boardgame.service.RoomService;
+import cc.techox.boardgame.util.AuthUtil;
 import cc.techox.boardgame.util.HashUtil;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,41 +32,40 @@ public class RoomController {
     @PostMapping("")
     public ApiResponse<?> create(@RequestHeader(name = "Authorization", required = false) String authHeader,
                                  @RequestBody CreateRoomRequest req) {
-        String token = parseBearer(authHeader);
-        if (token == null) return ApiResponse.error("未提供令牌");
-        User owner = authService.getUserByToken(token).orElse(null);
-        if (owner == null) return ApiResponse.error("令牌无效");
-        String passwordHash = null;
-        if (Boolean.TRUE.equals(req.getIsPrivate()) && req.getPassword() != null && !req.getPassword().isBlank()) {
-            passwordHash = HashUtil.hashPassword(req.getPassword());
+        try {
+            User owner = AuthUtil.requireAuth(authHeader, authService);
+            String passwordHash = null;
+            if (Boolean.TRUE.equals(req.getIsPrivate()) && req.getPassword() != null && !req.getPassword().isBlank()) {
+                passwordHash = HashUtil.hashPassword(req.getPassword());
+            }
+            Room r = roomService.createRoom(req.getName(), req.getGameCode(), req.getMaxPlayers(),
+                    Boolean.TRUE.equals(req.getIsPrivate()), passwordHash, owner);
+            return ApiResponse.ok("房间创建成功", new RoomInfo(r));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("创建房间失败: " + e.getMessage());
         }
-        Room r = roomService.createRoom(req.getName(), req.getGameCode(), req.getMaxPlayers(),
-                Boolean.TRUE.equals(req.getIsPrivate()), passwordHash, owner);
-        return ApiResponse.ok("房间创建成功", new RoomInfo(r));
     }
 
     @DeleteMapping("/{id}/disband")
     public ApiResponse<?> disband(@RequestHeader(name = "Authorization", required = false) String authHeader,
                                   @PathVariable("id") Long roomId) {
-        String token = parseBearer(authHeader);
-        if (token == null) return ApiResponse.error("未提供令牌");
-        
-        User user = authService.getUserByToken(token).orElse(null);
-        if (user == null) return ApiResponse.error("未登录或令牌无效");
-        
-        boolean success = roomService.ownerDisbandRoom(roomId, user);
-        if (!success) {
-            return ApiResponse.error("解散失败：房间不存在、您不是房主或房间状态不允许解散");
+        try {
+            User user = AuthUtil.requireAuth(authHeader, authService);
+            boolean success = roomService.ownerDisbandRoom(roomId, user);
+            if (!success) {
+                return ApiResponse.error("解散失败：房间不存在、您不是房主或房间状态不允许解散");
+            }
+            return ApiResponse.ok("房间已解散", null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("解散房间失败: " + e.getMessage());
         }
-        
-        return ApiResponse.ok("房间已解散", null);
     }
 
-    private String parseBearer(String h) {
-        if (h == null) return null;
-        if (h.toLowerCase().startsWith("bearer ")) return h.substring(7).trim();
-        return null;
-    }
+
 
     static class RoomInfo {
         public Long id;

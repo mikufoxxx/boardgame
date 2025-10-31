@@ -5,7 +5,12 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "auth_sessions")
+@Table(name = "auth_sessions", indexes = {
+    @Index(name = "idx_auth_session_token", columnList = "session_token"),
+    @Index(name = "idx_auth_session_user", columnList = "user_id"),
+    @Index(name = "idx_auth_session_expires", columnList = "expires_at"),
+    @Index(name = "idx_auth_session_user_active", columnList = "user_id, revoked, expires_at")
+})
 public class AuthSession {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

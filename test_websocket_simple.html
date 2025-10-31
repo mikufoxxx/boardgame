@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket 测试</title>
+</head>
+<body>
+    <h1>WebSocket 测试</h1>
+    <div id="log"></div>
+    
+    <script>
+        const log = document.getElementById('log');
+        
+        function addLog(message) {
+            log.innerHTML += '<p>' + new Date().toLocaleTimeString() + ': ' + message + '</p>';
+        }
+        
+        addLog('开始连接 WebSocket...');
+        
+        const ws = new WebSocket('ws://localhost:50000/ws');
+        
+        ws.onopen = function() {
+            addLog('✅ WebSocket 连接成功');
+            
+            // 发送认证消息（使用无效令牌来测试错误处理）
+            const authMessage = {
+                kind: 'cmd',
+                type: 'auth',
+                data: {
+                    token: 'invalid-test-token'
+                },
+                cid: 'test-auth-1'
+            };
+            
+            addLog('📤 发送认证消息: ' + JSON.stringify(authMessage));
+            ws.send(JSON.stringify(authMessage));
+        };
+        
+        ws.onmessage = function(event) {
+            addLog('📥 收到消息: ' + event.data);
+            
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.kind === 'err' && msg.code === 'INVALID_TOKEN') {
+                    addLog('⚠️ 令牌无效（预期结果）');
+                    addLog('✅ 重要：没有出现 LazyInitializationException！');
+                    addLog('🎉 修复成功！');
+                }
+            } catch (e) {
+                addLog('❌ 解析消息失败: ' + e.message);
+            }
+        };
+        
+        ws.onerror = function(error) {
+            addLog('❌ WebSocket 错误: ' + error);
+        };
+        
+        ws.onclose = function() {
+            addLog('🔌 WebSocket 连接关闭');
+        };
+    </script>
+</body>
+</html>

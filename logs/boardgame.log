@@ -1,0 +1,84 @@
+2025-10-31T19:34:53.647+08:00  INFO 12692 --- [boardgame] [restartedMain] c.techox.boardgame.BoardgameApplication  : Starting BoardgameApplication using Java 17.0.15 with PID 12692 (D:\DevelopProject\Java\boardgame\target\classes started by 45519 in D:\DevelopProject\Java\boardgame)
+2025-10-31T19:34:53.647+08:00  INFO 12692 --- [boardgame] [restartedMain] c.techox.boardgame.BoardgameApplication  : The following 1 profile is active: "dev"
+2025-10-31T19:34:53.726+08:00  INFO 12692 --- [boardgame] [restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2025-10-31T19:34:53.736+08:00  INFO 12692 --- [boardgame] [restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 8 ms. Found 6 JPA repository interfaces.
+2025-10-31T19:34:53.779+08:00  INFO 12692 --- [boardgame] [restartedMain] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 50001 (http)
+2025-10-31T19:34:53.779+08:00  INFO 12692 --- [boardgame] [restartedMain] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2025-10-31T19:34:53.779+08:00  INFO 12692 --- [boardgame] [restartedMain] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.48]
+2025-10-31T19:34:53.787+08:00  INFO 12692 --- [boardgame] [restartedMain] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2025-10-31T19:34:53.787+08:00  INFO 12692 --- [boardgame] [restartedMain] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 138 ms
+2025-10-31T19:34:53.804+08:00  INFO 12692 --- [boardgame] [restartedMain] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2025-10-31T19:34:53.805+08:00  INFO 12692 --- [boardgame] [restartedMain] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2025-10-31T19:34:53.810+08:00  INFO 12692 --- [boardgame] [restartedMain] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2025-10-31T19:34:53.811+08:00  INFO 12692 --- [boardgame] [restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Starting...
+2025-10-31T19:34:54.483+08:00  INFO 12692 --- [boardgame] [restartedMain] com.zaxxer.hikari.pool.HikariPool        : HikariPool-2 - Added connection com.mysql.cj.jdbc.ConnectionImpl@7e46e111
+2025-10-31T19:34:54.484+08:00  INFO 12692 --- [boardgame] [restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Start completed.
+2025-10-31T19:34:54.484+08:00  WARN 12692 --- [boardgame] [restartedMain] org.hibernate.orm.deprecation            : HHH90000025: MySQL8Dialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2025-10-31T19:34:54.484+08:00  WARN 12692 --- [boardgame] [restartedMain] org.hibernate.orm.deprecation            : HHH90000026: MySQL8Dialect has been deprecated; use org.hibernate.dialect.MySQLDialect instead
+2025-10-31T19:34:54.484+08:00  INFO 12692 --- [boardgame] [restartedMain] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-2)']
+	Database driver: undefined/unknown
+	Database version: 8.0
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2025-10-31T19:34:54.542+08:00  INFO 12692 --- [boardgame] [restartedMain] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2025-10-31T19:34:54.543+08:00  INFO 12692 --- [boardgame] [restartedMain] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2025-10-31T19:34:54.816+08:00  WARN 12692 --- [boardgame] [restartedMain] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2025-10-31T19:34:54.871+08:00  INFO 12692 --- [boardgame] [restartedMain] o.s.b.d.a.OptionalLiveReloadServer       : LiveReload server is running on port 35729
+2025-10-31T19:34:54.876+08:00  INFO 12692 --- [boardgame] [restartedMain] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 50001 (http) with context path '/'
+2025-10-31T19:34:54.878+08:00  INFO 12692 --- [boardgame] [restartedMain] c.techox.boardgame.BoardgameApplication  : Started BoardgameApplication in 1.272 seconds (process running for 33.421)
+2025-10-31T19:34:54.951+08:00  INFO 12692 --- [boardgame] [restartedMain] c.t.b.service.RoomStatusResetService     : 服务启动：开始重置房间状态...
+2025-10-31T19:34:55.484+08:00  INFO 12692 --- [boardgame] [restartedMain] c.t.b.service.RoomStatusResetService     : 保留了 3 个等待中的房间（玩家可重新加入）
+2025-10-31T19:34:55.484+08:00  INFO 12692 --- [boardgame] [restartedMain] c.t.b.service.RoomStatusResetService     : 清空了所有内存中的房间和游戏状态
+2025-10-31T19:34:55.558+08:00  INFO 12692 --- [boardgame] [restartedMain] c.t.b.service.RoomStatusResetService     : 当前房间状态统计：
+2025-10-31T19:34:55.559+08:00  INFO 12692 --- [boardgame] [restartedMain] c.t.b.service.RoomStatusResetService     :   waiting 状态房间: 3 个
+2025-10-31T19:34:55.559+08:00  INFO 12692 --- [boardgame] [restartedMain] c.t.b.service.RoomStatusResetService     : 服务启动：房间状态重置完成
+2025-10-31T19:34:55.707+08:00  INFO 12692 --- [boardgame] [restartedMain] .ConditionEvaluationDeltaLoggingListener : Condition evaluation unchanged
+2025-10-31T19:36:56.272+08:00  INFO 12692 --- [boardgame] [SpringApplicationShutdownHook] o.s.b.w.e.tomcat.GracefulShutdown        : Commencing graceful shutdown. Waiting for active requests to complete
+2025-10-31T19:36:56.297+08:00  INFO 12692 --- [boardgame] [tomcat-shutdown] o.s.b.w.e.tomcat.GracefulShutdown        : Graceful shutdown complete
+2025-10-31T19:36:56.298+08:00  INFO 12692 --- [boardgame] [SpringApplicationShutdownHook] j.LocalContainerEntityManagerFactoryBean : Closing JPA EntityManagerFactory for persistence unit 'default'
+2025-10-31T19:36:56.300+08:00  INFO 12692 --- [boardgame] [SpringApplicationShutdownHook] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Shutdown initiated...
+2025-10-31T19:36:56.301+08:00  INFO 12692 --- [boardgame] [SpringApplicationShutdownHook] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Shutdown completed.
+2025-10-31T19:37:04.120+08:00  INFO 28912 --- [boardgame] [restartedMain] c.techox.boardgame.BoardgameApplication  : Starting BoardgameApplication using Java 17.0.15 with PID 28912 (D:\DevelopProject\Java\boardgame\target\classes started by 45519 in D:\DevelopProject\Java\boardgame)
+2025-10-31T19:37:04.122+08:00  INFO 28912 --- [boardgame] [restartedMain] c.techox.boardgame.BoardgameApplication  : The following 1 profile is active: "dev"
+2025-10-31T19:37:04.146+08:00  INFO 28912 --- [boardgame] [restartedMain] .e.DevToolsPropertyDefaultsPostProcessor : Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2025-10-31T19:37:04.146+08:00  INFO 28912 --- [boardgame] [restartedMain] .e.DevToolsPropertyDefaultsPostProcessor : For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2025-10-31T19:37:04.480+08:00  INFO 28912 --- [boardgame] [restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2025-10-31T19:37:04.523+08:00  INFO 28912 --- [boardgame] [restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 38 ms. Found 6 JPA repository interfaces.
+2025-10-31T19:37:04.841+08:00  INFO 28912 --- [boardgame] [restartedMain] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 50001 (http)
+2025-10-31T19:37:04.851+08:00  INFO 28912 --- [boardgame] [restartedMain] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2025-10-31T19:37:04.851+08:00  INFO 28912 --- [boardgame] [restartedMain] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.48]
+2025-10-31T19:37:04.876+08:00  INFO 28912 --- [boardgame] [restartedMain] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2025-10-31T19:37:04.877+08:00  INFO 28912 --- [boardgame] [restartedMain] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 730 ms
+2025-10-31T19:37:04.951+08:00  INFO 28912 --- [boardgame] [restartedMain] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2025-10-31T19:37:04.980+08:00  INFO 28912 --- [boardgame] [restartedMain] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.33.Final
+2025-10-31T19:37:04.998+08:00  INFO 28912 --- [boardgame] [restartedMain] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2025-10-31T19:37:05.135+08:00  INFO 28912 --- [boardgame] [restartedMain] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2025-10-31T19:37:05.150+08:00  INFO 28912 --- [boardgame] [restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2025-10-31T19:37:06.675+08:00  INFO 28912 --- [boardgame] [restartedMain] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@5e0304d7
+2025-10-31T19:37:06.677+08:00  INFO 28912 --- [boardgame] [restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2025-10-31T19:37:06.795+08:00  WARN 28912 --- [boardgame] [restartedMain] org.hibernate.orm.deprecation            : HHH90000025: MySQL8Dialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2025-10-31T19:37:06.796+08:00  WARN 28912 --- [boardgame] [restartedMain] org.hibernate.orm.deprecation            : HHH90000026: MySQL8Dialect has been deprecated; use org.hibernate.dialect.MySQLDialect instead
+2025-10-31T19:37:06.805+08:00  INFO 28912 --- [boardgame] [restartedMain] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 8.0
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2025-10-31T19:37:07.241+08:00  INFO 28912 --- [boardgame] [restartedMain] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2025-10-31T19:37:07.243+08:00  INFO 28912 --- [boardgame] [restartedMain] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2025-10-31T19:37:07.374+08:00  INFO 28912 --- [boardgame] [restartedMain] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2025-10-31T19:37:08.410+08:00  WARN 28912 --- [boardgame] [restartedMain] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2025-10-31T19:37:08.580+08:00  INFO 28912 --- [boardgame] [restartedMain] o.s.b.d.a.OptionalLiveReloadServer       : LiveReload server is running on port 35729
+2025-10-31T19:37:08.597+08:00  INFO 28912 --- [boardgame] [restartedMain] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 50001 (http) with context path '/'
+2025-10-31T19:37:08.602+08:00  INFO 28912 --- [boardgame] [restartedMain] c.techox.boardgame.BoardgameApplication  : Started BoardgameApplication in 4.733 seconds (process running for 4.929)
+2025-10-31T19:37:08.698+08:00  INFO 28912 --- [boardgame] [restartedMain] c.t.b.service.RoomStatusResetService     : 服务启动：开始重置房间状态...
+2025-10-31T19:37:09.005+08:00  INFO 28912 --- [boardgame] [restartedMain] c.t.b.service.RoomStatusResetService     : 保留了 3 个等待中的房间（玩家可重新加入）
+2025-10-31T19:37:09.005+08:00  INFO 28912 --- [boardgame] [restartedMain] c.t.b.service.RoomStatusResetService     : 清空了所有内存中的房间和游戏状态
+2025-10-31T19:37:09.101+08:00  INFO 28912 --- [boardgame] [restartedMain] c.t.b.service.RoomStatusResetService     : 当前房间状态统计：
+2025-10-31T19:37:09.101+08:00  INFO 28912 --- [boardgame] [restartedMain] c.t.b.service.RoomStatusResetService     :   waiting 状态房间: 3 个
+2025-10-31T19:37:09.102+08:00  INFO 28912 --- [boardgame] [restartedMain] c.t.b.service.RoomStatusResetService     : 服务启动：房间状态重置完成

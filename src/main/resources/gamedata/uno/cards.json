@@ -1,0 +1,77 @@
+{
+  "gameInfo": {
+    "name": "UNO",
+    "version": "1.0",
+    "totalCards": 108
+  },
+  "colors": ["red", "blue", "green", "yellow"],
+  "cardTypes": {
+    "number": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
+    "action": ["skip", "reverse", "draw2"],
+    "wild": ["wild", "wild_draw4"]
+  },
+  "deck": [
+    {"id": "red_0", "color": "red", "value": "0", "type": "number", "count": 1},
+    {"id": "red_1", "color": "red", "value": "1", "type": "number", "count": 2},
+    {"id": "red_2", "color": "red", "value": "2", "type": "number", "count": 2},
+    {"id": "red_3", "color": "red", "value": "3", "type": "number", "count": 2},
+    {"id": "red_4", "color": "red", "value": "4", "type": "number", "count": 2},
+    {"id": "red_5", "color": "red", "value": "5", "type": "number", "count": 2},
+    {"id": "red_6", "color": "red", "value": "6", "type": "number", "count": 2},
+    {"id": "red_7", "color": "red", "value": "7", "type": "number", "count": 2},
+    {"id": "red_8", "color": "red", "value": "8", "type": "number", "count": 2},
+    {"id": "red_9", "color": "red", "value": "9", "type": "number", "count": 2},
+    
+    {"id": "red_skip", "color": "red", "value": "skip", "type": "action", "count": 2},
+    {"id": "red_reverse", "color": "red", "value": "reverse", "type": "action", "count": 2},
+    {"id": "red_draw2", "color": "red", "value": "draw2", "type": "action", "count": 2},
+    
+    {"id": "blue_0", "color": "blue", "value": "0", "type": "number", "count": 1},
+    {"id": "blue_1", "color": "blue", "value": "1", "type": "number", "count": 2},
+    {"id": "blue_2", "color": "blue", "value": "2", "type": "number", "count": 2},
+    {"id": "blue_3", "color": "blue", "value": "3", "type": "number", "count": 2},
+    {"id": "blue_4", "color": "blue", "value": "4", "type": "number", "count": 2},
+    {"id": "blue_5", "color": "blue", "value": "5", "type": "number", "count": 2},
+    {"id": "blue_6", "color": "blue", "value": "6", "type": "number", "count": 2},
+    {"id": "blue_7", "color": "blue", "value": "7", "type": "number", "count": 2},
+    {"id": "blue_8", "color": "blue", "value": "8", "type": "number", "count": 2},
+    {"id": "blue_9", "color": "blue", "value": "9", "type": "number", "count": 2},
+    
+    {"id": "blue_skip", "color": "blue", "value": "skip", "type": "action", "count": 2},
+    {"id": "blue_reverse", "color": "blue", "value": "reverse", "type": "action", "count": 2},
+    {"id": "blue_draw2", "color": "blue", "value": "draw2", "type": "action", "count": 2},
+    
+    {"id": "green_0", "color": "green", "value": "0", "type": "number", "count": 1},
+    {"id": "green_1", "color": "green", "value": "1", "type": "number", "count": 2},
+    {"id": "green_2", "color": "green", "value": "2", "type": "number", "count": 2},
+    {"id": "green_3", "color": "green", "value": "3", "type": "number", "count": 2},
+    {"id": "green_4", "color": "green", "value": "4", "type": "number", "count": 2},
+    {"id": "green_5", "color": "green", "value": "5", "type": "number", "count": 2},
+    {"id": "green_6", "color": "green", "value": "6", "type": "number", "count": 2},
+    {"id": "green_7", "color": "green", "value": "7", "type": "number", "count": 2},
+    {"id": "green_8", "color": "green", "value": "8", "type": "number", "count": 2},
+    {"id": "green_9", "color": "green", "value": "9", "type": "number", "count": 2},
+    
+    {"id": "green_skip", "color": "green", "value": "skip", "type": "action", "count": 2},
+    {"id": "green_reverse", "color": "green", "value": "reverse", "type": "action", "count": 2},
+    {"id": "green_draw2", "color": "green", "value": "draw2", "type": "action", "count": 2},
+    
+    {"id": "yellow_0", "color": "yellow", "value": "0", "type": "number", "count": 1},
+    {"id": "yellow_1", "color": "yellow", "value": "1", "type": "number", "count": 2},
+    {"id": "yellow_2", "color": "yellow", "value": "2", "type": "number", "count": 2},
+    {"id": "yellow_3", "color": "yellow", "value": "3", "type": "number", "count": 2},
+    {"id": "yellow_4", "color": "yellow", "value": "4", "type": "number", "count": 2},
+    {"id": "yellow_5", "color": "yellow", "value": "5", "type": "number", "count": 2},
+    {"id": "yellow_6", "color": "yellow", "value": "6", "type": "number", "count": 2},
+    {"id": "yellow_7", "color": "yellow", "value": "7", "type": "number", "count": 2},
+    {"id": "yellow_8", "color": "yellow", "value": "8", "type": "number", "count": 2},
+    {"id": "yellow_9", "color": "yellow", "value": "9", "type": "number", "count": 2},
+    
+    {"id": "yellow_skip", "color": "yellow", "value": "skip", "type": "action", "count": 2},
+    {"id": "yellow_reverse", "color": "yellow", "value": "reverse", "type": "action", "count": 2},
+    {"id": "yellow_draw2", "color": "yellow", "value": "draw2", "type": "action", "count": 2},
+    
+    {"id": "wild", "color": "wild", "value": "wild", "type": "wild", "count": 4},
+    {"id": "wild_draw4", "color": "wild", "value": "wild_draw4", "type": "wild", "count": 4}
+  ]
+}

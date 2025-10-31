@@ -5,7 +5,13 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "rooms")
+@Table(name = "rooms", indexes = {
+    @Index(name = "idx_room_status", columnList = "status"),
+    @Index(name = "idx_room_game", columnList = "game_id"),
+    @Index(name = "idx_room_owner", columnList = "owner_id"),
+    @Index(name = "idx_room_created", columnList = "created_at"),
+    @Index(name = "idx_room_status_game", columnList = "status, game_id")
+})
 public class Room {
     public enum Status { waiting, playing, finished, disbanded }
 

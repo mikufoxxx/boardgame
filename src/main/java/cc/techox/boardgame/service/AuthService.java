@@ -60,15 +60,31 @@ public class AuthService {
         if (!HashUtil.verifyPassword(password, u.getPasswordHash())) {
             throw new IllegalArgumentException("用户名或密码错误");
         }
-        AuthSession s = new AuthSession();
-        s.setUser(u);
-        s.setSessionToken(TokenUtil.randomToken32());
-        s.setCreatedAt(LocalDateTime.now());
-        s.setExpiresAt(LocalDateTime.now().plusDays(30));
-        s.setRevoked(false);
-        s.setIpAddress(ip);
-        sessionRepo.save(s);
-        return s.getSessionToken();
+        
+        // 检查是否已有活跃会话
+        Optional<AuthSession> existingSession = sessionRepo.findActiveSessionByUser(u, LocalDateTime.now());
+        
+        if (existingSession.isPresent()) {
+            // 顶号：更新现有会话
+            AuthSession session = existingSession.get();
+            session.setSessionToken(TokenUtil.randomToken32()); // 生成新的token
+            session.setCreatedAt(LocalDateTime.now()); // 更新登录时间
+            session.setExpiresAt(LocalDateTime.now().plusDays(30)); // 重新设置过期时间
+            session.setIpAddress(ip); // 更新IP地址
+            sessionRepo.save(session);
+            return session.getSessionToken();
+        } else {
+            // 创建新会话
+            AuthSession s = new AuthSession();
+            s.setUser(u);
+            s.setSessionToken(TokenUtil.randomToken32());
+            s.setCreatedAt(LocalDateTime.now());
+            s.setExpiresAt(LocalDateTime.now().plusDays(30));
+            s.setRevoked(false);
+            s.setIpAddress(ip);
+            sessionRepo.save(s);
+            return s.getSessionToken();
+        }
     }
 
     @Transactional
@@ -81,7 +97,7 @@ public class AuthService {
     }
 
     public Optional<User> getUserByToken(String token) {
-        return sessionRepo.findBySessionToken(token)
+        return sessionRepo.findBySessionTokenWithUser(token)
                 .filter(s -> !s.isRevoked() && (s.getExpiresAt() == null || s.getExpiresAt().isAfter(LocalDateTime.now())))
                 .map(AuthSession::getUser);
     }
