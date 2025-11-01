@@ -6,6 +6,7 @@ public class UnoState {
     public static class PlayerState {
         public long userId;
         public List<String> hand = new ArrayList<>(); // UnoCard.code()
+        public boolean hasCalledUno = false; // 是否已调用 UNO
         public PlayerState() {}
         public PlayerState(long userId) { this.userId = userId; }
     }

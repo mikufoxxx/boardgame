@@ -299,7 +299,7 @@ public class GameEventBroadcaster {
             Long roomId = gameSession.getRoomId();
             
             // 广播游戏操作事件
-            broadcastGameAction(roomId, matchId, user, "play_card", 
+            broadcastGameActionPrivate(roomId, matchId, user, "play_card", 
                 Map.of("card", card, "chosenColor", chosenColor));
             
         } catch (Exception e) {
@@ -325,7 +325,7 @@ public class GameEventBroadcaster {
             Long roomId = gameSession.getRoomId();
             
             // 广播游戏操作事件
-            broadcastGameAction(roomId, matchId, user, "draw_card", Map.of());
+            broadcastGameActionPrivate(roomId, matchId, user, "draw_card", Map.of());
             
         } catch (Exception e) {
             // 发送错误消息给操作用户
@@ -336,9 +336,46 @@ public class GameEventBroadcaster {
     }
     
     /**
-     * 广播游戏操作事件
+     * 广播游戏操作事件（公共方法）
      */
-    private void broadcastGameAction(Long roomId, Long matchId, User player, String action, Map<String, Object> actionData) {
+    public void broadcastGameAction(Long roomId, Long matchId, User player, String action, Map<String, Object> actionData) {
+        // 为房间内每个用户生成个性化的游戏状态
+        sessionManager.getRoomUsers(roomId).forEach(userId -> {
+            try {
+                Map<String, Object> gameState = unoService.view(matchId, userId);
+                
+                Map<String, Object> eventData = new HashMap<>();
+                eventData.put("matchId", matchId);
+                eventData.put("action", action);
+                eventData.put("player", Map.of(
+                    "userId", player.getId(),
+                    "username", player.getUsername(),
+                    "displayName", player.getDisplayName()
+                ));
+                eventData.put("actionData", actionData);
+                eventData.put("newGameState", gameState);
+                
+                String gameCode = roomRepository.findByIdWithGame(roomId).map(r -> r.getGame().getCode().toLowerCase()).orElse("uno");
+                String channel = ChannelNames.match(gameCode, matchId);
+                WebSocketMessage message = WebSocketMessage.success("game_action", eventData);
+                message.setKind("evt");
+                message.setGame(gameCode);
+                message.setChannel(channel);
+                sessionManager.sendToUser(userId, message);
+                
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+        
+        // 检查游戏是否结束
+        checkGameFinished(roomId, matchId);
+    }
+
+    /**
+     * 广播游戏操作事件（私有方法，保持向后兼容）
+     */
+    private void broadcastGameActionPrivate(Long roomId, Long matchId, User player, String action, Map<String, Object> actionData) {
         // 为房间内每个用户生成个性化的游戏状态
         sessionManager.getRoomUsers(roomId).forEach(userId -> {
             try {

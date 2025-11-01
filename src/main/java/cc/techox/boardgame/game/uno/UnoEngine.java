@@ -72,6 +72,14 @@ public class UnoEngine {
     private static String convertCardIdToCode(String cardId) {
         if (cardId == null) return "?-?";
         
+        // 特殊处理万能牌
+        if ("wild".equals(cardId)) {
+            return "W-WILD";
+        }
+        if ("wild_draw4".equals(cardId)) {
+            return "W-D4";
+        }
+        
         String[] parts = cardId.split("_");
         if (parts.length != 2) return cardId; // 如果格式不对，直接返回原值
         
@@ -173,7 +181,23 @@ public class UnoEngine {
     public static boolean canPlay(UnoState s, String cardCode) {
         UnoCard card = UnoCard.fromCode(cardCode);
         UnoCard top = UnoCard.fromCode(s.discardPile.peek());
+        
+        // 如果有待摸牌惩罚，只能出相同的惩罚牌或摸牌
+        if (s.pendingDraw > 0) {
+            // 只能出Draw2叠加Draw2，或WildDraw4叠加任何惩罚牌
+            if (card.getType() == UnoCard.Type.DRAW2 && top.getType() == UnoCard.Type.DRAW2) {
+                return true;
+            }
+            if (card.getType() == UnoCard.Type.WILDDRAW4) {
+                return true;
+            }
+            return false; // 其他情况必须摸牌
+        }
+        
+        // 万能牌总是可以出
         if (card.getType() == UnoCard.Type.WILD || card.getType() == UnoCard.Type.WILDDRAW4) return true;
+        
+        // 检查强制颜色
         if (s.forcedColor != null && card.getColor() != UnoCard.Color.BLACK) {
             return switch (s.forcedColor) {
                 case "R" -> card.getColor() == UnoCard.Color.RED;
@@ -183,6 +207,8 @@ public class UnoEngine {
                 default -> false;
             };
         }
+        
+        // 正常匹配规则：颜色相同或类型相同
         return card.getColor() == top.getColor() || card.getType() == top.getType();
     }
 
@@ -192,22 +218,57 @@ public class UnoEngine {
         if (p.userId != userId) throw new IllegalArgumentException("not your turn");
         if (!p.hand.remove(cardCode)) throw new IllegalArgumentException("no such card in hand");
         if (!canPlay(s, cardCode)) throw new IllegalArgumentException("cannot play");
+        
         s.discardPile.push(cardCode);
         UnoCard card = UnoCard.fromCode(cardCode);
         s.forcedColor = null;
-        // 处理功能
+        
+        // 处理特殊牌效果
         switch (card.getType()) {
-            case REVERSE -> s.direction = -s.direction;
-            case SKIP -> s.currentIdx = s.nextIndex(1);
-            case DRAW2 -> s.pendingDraw += 2;
-            case WILD -> s.forcedColor = normalizeColor(chooseColor);
-            case WILDDRAW4 -> { s.pendingDraw += 4; s.forcedColor = normalizeColor(chooseColor); }
-            default -> {}
+            case REVERSE -> {
+                s.direction = -s.direction;
+                // 在2人游戏中，Reverse相当于Skip
+                if (s.players.size() == 2) {
+                    s.currentIdx = s.nextIndex(1);
+                }
+            }
+            case SKIP -> {
+                // Skip直接跳过下一个玩家
+                s.currentIdx = s.nextIndex(1);
+            }
+            case DRAW2 -> {
+                s.pendingDraw += 2;
+                // 如果下一个玩家没有Draw2或WildDraw4，他们必须摸牌并跳过
+                s.currentIdx = s.nextIndex(1);
+            }
+            case WILD -> {
+                s.forcedColor = normalizeColor(chooseColor);
+            }
+            case WILDDRAW4 -> {
+                s.pendingDraw += 4;
+                s.forcedColor = normalizeColor(chooseColor);
+                // 下一个玩家必须摸牌并跳过（除非他们也有WildDraw4）
+                s.currentIdx = s.nextIndex(1);
+            }
+            default -> {
+                // 普通牌，正常推进到下一个玩家
+                s.currentIdx = s.nextIndex(1);
+            }
         }
+        
+        // 检查是否需要自动调用 UNO（当玩家只剩一张牌时）
+        if (p.hand.size() == 1) {
+            p.hasCalledUno = true;
+        }
+        
         // 胜利判定
-        if (p.hand.isEmpty()) { s.finished = true; s.winnerUserId = p.userId; return; }
-        // 推进到下家
-        s.currentIdx = s.nextIndex(1);
+        if (p.hand.isEmpty()) { 
+            s.finished = true; 
+            s.winnerUserId = p.userId; 
+            return; 
+        }
+        
+        // 注意：回合切换已经在上面的switch中处理了，不需要再次推进
     }
 
     private static void ensureDrawPile(UnoState s) {
@@ -228,6 +289,9 @@ public class UnoEngine {
         m.put("drawCount", s.pendingDraw);
         m.put("lastColor", s.forcedColor);
         
+        // 添加牌库数量
+        m.put("deckSize", s.drawPile.size());
+        
         // 返回顶部卡牌的对象格式
         if (s.discardPile.peek() != null) {
             m.put("topCard", UnoCard.codeToObject(s.discardPile.peek()));
@@ -246,7 +310,7 @@ public class UnoEngine {
             pm.put("userId", p.userId);
             pm.put("handSize", p.hand.size());
             pm.put("position", i);
-            pm.put("hasCalledUno", false); // TODO: 实现 UNO 调用功能
+            pm.put("hasCalledUno", p.hasCalledUno);
             
             // 如果是当前查看者，返回完整手牌对象
             if (p.userId == viewerId) {
@@ -273,6 +337,9 @@ public class UnoEngine {
         m.put("drawCount", s.pendingDraw);
         m.put("lastColor", s.forcedColor);
         
+        // 添加牌库数量
+        m.put("deckSize", s.drawPile.size());
+        
         // 返回顶部卡牌的对象格式
         if (s.discardPile.peek() != null) {
             m.put("topCard", UnoCard.codeToObject(s.discardPile.peek()));
@@ -283,6 +350,15 @@ public class UnoEngine {
         m.put("started", s.started);
         m.put("finished", s.finished);
         m.put("winnerUserId", s.winnerUserId);
+        
+        // 添加当前玩家的游戏状态信息
+        UnoState.PlayerState currentPlayerState = s.currentPlayer();
+        if (currentPlayerState.userId == viewerId) {
+            m.put("mustDraw", mustDraw(s, viewerId));
+            m.put("playableCards", getPlayableCards(s, viewerId).stream()
+                .map(UnoCard::codeToObject)
+                .collect(java.util.stream.Collectors.toList()));
+        }
         
         List<Map<String,Object>> players = new ArrayList<>();
         for (int i=0;i<s.players.size();i++) {
@@ -303,7 +379,8 @@ public class UnoEngine {
             pm.put("handSize", p.hand.size());
             pm.put("position", i);
             pm.put("isReady", false); // 游戏中不需要准备状态
-            pm.put("hasCalledUno", false); // TODO: 实现 UNO 调用功能
+            pm.put("hasCalledUno", p.hasCalledUno);
+            pm.put("isCurrentPlayer", i == s.currentIdx);
             
             // 如果是当前查看者，返回完整手牌对象
             if (p.userId == viewerId) {
@@ -345,23 +422,340 @@ public class UnoEngine {
     }
     
     /**
+     * 检查玩家是否必须摸牌（因为有待摸牌惩罚且没有合法牌可出）
+     */
+    public static boolean mustDraw(UnoState s, long userId) {
+        if (s.pendingDraw == 0) return false; // 没有惩罚，不需要强制摸牌
+        
+        UnoState.PlayerState p = s.currentPlayer();
+        if (p.userId != userId) return false;
+        
+        // 检查手牌中是否有可以叠加的惩罚牌
+        for (String cardCode : p.hand) {
+            if (canPlay(s, cardCode)) {
+                return false; // 有牌可出，不需要强制摸牌
+            }
+        }
+        
+        return true; // 没有合法牌，必须摸牌
+    }
+    
+    /**
+     * 获取玩家手牌中可以出的牌
+     */
+    public static List<String> getPlayableCards(UnoState s, long userId) {
+        UnoState.PlayerState p = s.currentPlayer();
+        if (p.userId != userId) return new ArrayList<>();
+        
+        List<String> playableCards = new ArrayList<>();
+        for (String cardCode : p.hand) {
+            if (canPlay(s, cardCode)) {
+                playableCards.add(cardCode);
+            }
+        }
+        
+        return playableCards;
+    }
+    
+    /**
+     * UNO 调用方法
+     */
+    public static UnoState callUno(UnoState originalState, long userId) {
+        UnoState state = copyState(originalState);
+        
+        if (state.finished) throw new IllegalStateException("game finished");
+        
+        // 找到调用 UNO 的玩家
+        UnoState.PlayerState player = null;
+        for (UnoState.PlayerState p : state.players) {
+            if (p.userId == userId) {
+                player = p;
+                break;
+            }
+        }
+        
+        if (player == null) {
+            throw new IllegalArgumentException("player not found");
+        }
+        
+        // 只有当玩家手牌数为1时才能调用 UNO
+        if (player.hand.size() != 1) {
+            throw new IllegalArgumentException("can only call UNO with exactly 1 card");
+        }
+        
+        player.hasCalledUno = true;
+        return state;
+    }
+
+    /**
+     * +4 质疑结果类
+     */
+    public static class ChallengeResult {
+        public final UnoState newState;
+        public final boolean challengeSuccessful;
+        public final long challengerId;
+        public final long challengedPlayerId;
+        public final int penaltyCards;
+        public final String reason;
+        
+        public ChallengeResult(UnoState newState, boolean challengeSuccessful, long challengerId, 
+                             long challengedPlayerId, int penaltyCards, String reason) {
+            this.newState = newState;
+            this.challengeSuccessful = challengeSuccessful;
+            this.challengerId = challengerId;
+            this.challengedPlayerId = challengedPlayerId;
+            this.penaltyCards = penaltyCards;
+            this.reason = reason;
+        }
+    }
+
+    /**
+     * UNO 惩罚结果类
+     */
+    public static class UnoPenaltyResult {
+        public final UnoState newState;
+        public final long penalizedPlayerId;
+        public final int penaltyCards;
+        public final String reason;
+        
+        public UnoPenaltyResult(UnoState newState, long penalizedPlayerId, int penaltyCards, String reason) {
+            this.newState = newState;
+            this.penalizedPlayerId = penalizedPlayerId;
+            this.penaltyCards = penaltyCards;
+            this.reason = reason;
+        }
+    }
+
+    /**
+     * 质疑 +4 万能牌
+     */
+    public static ChallengeResult challengeWildDraw4(UnoState originalState, long challengerId) {
+        UnoState state = copyState(originalState);
+        
+        if (state.finished) throw new IllegalStateException("game finished");
+        
+        // 找到质疑者
+        UnoState.PlayerState challenger = null;
+        for (UnoState.PlayerState p : state.players) {
+            if (p.userId == challengerId) {
+                challenger = p;
+                break;
+            }
+        }
+        
+        if (challenger == null) {
+            throw new IllegalArgumentException("challenger not found");
+        }
+        
+        // 检查是否有可质疑的情况（上一张牌必须是 +4）
+        if (state.discardPile.isEmpty()) {
+            throw new IllegalArgumentException("no card to challenge");
+        }
+        
+        String topCard = state.discardPile.peek();
+        if (!topCard.equals("W-D4")) {
+            throw new IllegalArgumentException("can only challenge Wild Draw 4 cards");
+        }
+        
+        // 找到被质疑的玩家（上一个出牌的玩家）
+        int challengedPlayerIdx = (state.currentIdx - state.direction + state.players.size()) % state.players.size();
+        UnoState.PlayerState challengedPlayer = state.players.get(challengedPlayerIdx);
+        
+        // 检查被质疑玩家的手牌中是否有其他可出的牌
+        boolean hasOtherPlayableCards = false;
+        String previousCard = null;
+        
+        // 模拟移除 +4 牌后的状态来检查
+        if (state.discardPile.size() > 1) {
+            List<String> discardList = new ArrayList<>(state.discardPile);
+            if (discardList.size() > 1) {
+                previousCard = discardList.get(discardList.size() - 2);
+            }
+        }
+        
+        if (previousCard != null) {
+            // 检查被质疑玩家是否有其他可出的牌
+            for (String cardCode : challengedPlayer.hand) {
+                if (canPlayAgainstCard(cardCode, previousCard, state.forcedColor)) {
+                    hasOtherPlayableCards = true;
+                    break;
+                }
+            }
+        }
+        
+        ensureDrawPile(state);
+        
+        if (hasOtherPlayableCards) {
+            // 质疑成功：被质疑玩家违规出牌，罚摸4张牌
+            for (int i = 0; i < 4 && !state.drawPile.isEmpty(); i++) {
+                challengedPlayer.hand.add(state.drawPile.pop());
+            }
+            
+            // 清除待摸牌惩罚（质疑者不需要摸牌）
+            state.pendingDraw = 0;
+            
+            return new ChallengeResult(state, true, challengerId, challengedPlayer.userId, 4, 
+                "质疑成功：被质疑玩家有其他可出的牌却出了+4");
+        } else {
+            // 质疑失败：质疑者罚摸6张牌（原本4张+惩罚2张）
+            for (int i = 0; i < 6 && !state.drawPile.isEmpty(); i++) {
+                challenger.hand.add(state.drawPile.pop());
+            }
+            
+            // 清除待摸牌惩罚
+            state.pendingDraw = 0;
+            
+            return new ChallengeResult(state, false, challengerId, challengedPlayer.userId, 6, 
+                "质疑失败：被质疑玩家合法出牌");
+        }
+    }
+
+    /**
+     * 检查卡牌是否可以对指定卡牌出牌
+     */
+    private static boolean canPlayAgainstCard(String cardCode, String targetCard, String forcedColor) {
+        UnoCard card = UnoCard.fromCode(cardCode);
+        UnoCard target = UnoCard.fromCode(targetCard);
+        
+        // 万能牌总是可以出
+        if (card.getType() == UnoCard.Type.WILD || card.getType() == UnoCard.Type.WILDDRAW4) {
+            return true;
+        }
+        
+        // 检查强制颜色
+        if (forcedColor != null && card.getColor() != UnoCard.Color.BLACK) {
+            return switch (forcedColor) {
+                case "red", "R" -> card.getColor() == UnoCard.Color.RED;
+                case "green", "G" -> card.getColor() == UnoCard.Color.GREEN;
+                case "blue", "B" -> card.getColor() == UnoCard.Color.BLUE;
+                case "yellow", "Y" -> card.getColor() == UnoCard.Color.YELLOW;
+                default -> false;
+            };
+        }
+        
+        // 颜色或数字/类型匹配
+        return card.getColor() == target.getColor() || card.getType() == target.getType();
+    }
+
+    /**
+     * 惩罚忘记喊 UNO 的玩家
+     */
+    public static UnoPenaltyResult penalizeForgetUno(UnoState originalState, long penalizedPlayerId) {
+        UnoState state = copyState(originalState);
+        
+        if (state.finished) throw new IllegalStateException("game finished");
+        
+        // 找到被惩罚的玩家
+        UnoState.PlayerState penalizedPlayer = null;
+        for (UnoState.PlayerState p : state.players) {
+            if (p.userId == penalizedPlayerId) {
+                penalizedPlayer = p;
+                break;
+            }
+        }
+        
+        if (penalizedPlayer == null) {
+            throw new IllegalArgumentException("penalized player not found");
+        }
+        
+        // 检查玩家是否确实忘记喊 UNO（手牌数为1且未调用UNO）
+        if (penalizedPlayer.hand.size() != 1 || penalizedPlayer.hasCalledUno) {
+            throw new IllegalArgumentException("player is not eligible for UNO penalty");
+        }
+        
+        ensureDrawPile(state);
+        
+        // 罚摸2张牌
+        for (int i = 0; i < 2 && !state.drawPile.isEmpty(); i++) {
+            penalizedPlayer.hand.add(state.drawPile.pop());
+        }
+        
+        return new UnoPenaltyResult(state, penalizedPlayerId, 2, "忘记喊 UNO");
+    }
+
+    /**
+     * 摸牌结果类
+     */
+    public static class DrawResult {
+        public final UnoState newState;
+        public final List<String> drawnCards;
+        public final int drawCount;
+        
+        public DrawResult(UnoState newState, List<String> drawnCards, int drawCount) {
+            this.newState = newState;
+            this.drawnCards = drawnCards;
+            this.drawCount = drawCount;
+        }
+    }
+
+    /**
+     * 摸牌并跳过方法（返回详细信息）
+     */
+    public static DrawResult drawAndPassWithDetails(UnoState originalState, long userId) {
+        // 创建状态副本以避免修改原状态
+        UnoState state = copyState(originalState);
+        
+        if (state.finished) throw new IllegalStateException("game finished");
+        UnoState.PlayerState p = state.currentPlayer();
+        if (p.userId != userId) throw new IllegalArgumentException("not your turn");
+        
+        ensureDrawPile(state);
+        
+        // 确定摸牌数量
+        int drawCount = Math.max(1, state.pendingDraw);
+        List<String> drawnCards = new ArrayList<>();
+        
+        // 摸牌
+        for (int i = 0; i < drawCount; i++) {
+            if (state.drawPile.isEmpty()) {
+                // 如果牌库空了但还需要摸牌，游戏结束（平局）
+                break;
+            }
+            String drawnCard = state.drawPile.pop();
+            p.hand.add(drawnCard);
+            drawnCards.add(drawnCard);
+        }
+        
+        // 清除待摸牌惩罚和强制颜色
+        state.pendingDraw = 0;
+        state.forcedColor = null;
+        
+        // 推进到下一个玩家
+        state.currentIdx = state.nextIndex(1);
+        
+        return new DrawResult(state, drawnCards, drawnCards.size());
+    }
+
+    /**
      * 摸牌并跳过方法（使用新的状态对象）
      */
     public static UnoState drawAndPass(UnoState originalState, long userId) {
         // 创建状态副本以避免修改原状态
         UnoState state = copyState(originalState);
         
-        // 实现摸牌逻辑
         if (state.finished) throw new IllegalStateException("game finished");
         UnoState.PlayerState p = state.currentPlayer();
         if (p.userId != userId) throw new IllegalArgumentException("not your turn");
+        
         ensureDrawPile(state);
-        int n = Math.max(1, state.pendingDraw);
-        for (int i = 0; i < n; i++) {
+        
+        // 确定摸牌数量
+        int drawCount = Math.max(1, state.pendingDraw);
+        
+        // 摸牌
+        for (int i = 0; i < drawCount; i++) {
+            if (state.drawPile.isEmpty()) {
+                // 如果牌库空了但还需要摸牌，游戏结束（平局）
+                break;
+            }
             p.hand.add(state.drawPile.pop());
         }
+        
+        // 清除待摸牌惩罚和强制颜色
         state.pendingDraw = 0;
         state.forcedColor = null;
+        
+        // 推进到下一个玩家
         state.currentIdx = state.nextIndex(1);
         
         return state;
@@ -377,6 +771,7 @@ public class UnoEngine {
         for (UnoState.PlayerState player : original.players) {
             UnoState.PlayerState playerCopy = new UnoState.PlayerState(player.userId);
             playerCopy.hand.addAll(player.hand);
+            playerCopy.hasCalledUno = player.hasCalledUno;
             copy.players.add(playerCopy);
         }
         

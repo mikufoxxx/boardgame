@@ -6,13 +6,13 @@ import cc.techox.boardgame.model.*;
 import cc.techox.boardgame.repo.*;
 import cc.techox.boardgame.game.uno.UnoEngine;
 import cc.techox.boardgame.game.uno.UnoState;
+import cc.techox.boardgame.game.uno.UnoCard;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
@@ -33,6 +33,39 @@ public class UnoService {
         this.userRepo = userRepo;
         this.gameStateManager = gameStateManager;
         this.gameDataManager = gameDataManager;
+    }
+
+    @Transactional
+    public Map<String, Object> drawAndPassWithDetails(long matchId, User player) {
+        // 从内存获取游戏会话
+        GameStateManager.GameStateData gameSession = gameStateManager.getGameSession(matchId)
+            .orElseThrow(() -> new IllegalArgumentException("游戏会话不存在"));
+        
+        if (!"playing".equals(gameSession.getStatus())) {
+            throw new IllegalArgumentException("游戏已结束");
+        }
+
+        // 从内存获取游戏状态
+        UnoState currentState = (UnoState) gameStateManager.getGameState(matchId)
+            .orElseThrow(() -> new IllegalArgumentException("游戏状态不存在"));
+
+        // 执行摸牌逻辑（获取详细信息）
+        UnoEngine.DrawResult drawResult = UnoEngine.drawAndPassWithDetails(currentState, player.getId());
+        
+        // 更新内存中的游戏状态
+        gameStateManager.updateGameState(matchId, drawResult.newState);
+        
+        // 增加回合数
+        gameStateManager.incrementGameTurn(matchId);
+        
+        // 构建返回结果，包含摸牌详细信息
+        Map<String, Object> result = new HashMap<>(UnoEngine.publicViewWithUserInfo(drawResult.newState, player.getId(), getUserInfoMap(drawResult.newState)));
+        result.put("drawnCards", drawResult.drawnCards.stream()
+            .map(UnoCard::codeToObject)
+            .collect(java.util.stream.Collectors.toList()));
+        result.put("drawCount", drawResult.drawCount);
+        
+        return result;
     }
 
     @Transactional
@@ -94,8 +127,8 @@ public class UnoService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> view(long matchId, long viewerId) {
-        // 从内存获取游戏会话
-        GameStateManager.GameStateData gameSession = gameStateManager.getGameSession(matchId)
+        // 验证游戏会话存在
+        gameStateManager.getGameSession(matchId)
             .orElseThrow(() -> new IllegalArgumentException("游戏会话不存在"));
         
         // 从内存获取游戏状态
@@ -163,6 +196,89 @@ public class UnoService {
         return UnoEngine.publicViewWithUserInfo(newState, player.getId(), getUserInfoMap(newState));
     }
     
+    @Transactional
+    public Map<String, Object> callUno(long matchId, User player) {
+        // 从内存获取游戏会话
+        GameStateManager.GameStateData gameSession = gameStateManager.getGameSession(matchId)
+            .orElseThrow(() -> new IllegalArgumentException("游戏会话不存在"));
+        
+        if (!"playing".equals(gameSession.getStatus())) {
+            throw new IllegalArgumentException("游戏已结束");
+        }
+
+        // 从内存获取游戏状态
+        UnoState currentState = (UnoState) gameStateManager.getGameState(matchId)
+            .orElseThrow(() -> new IllegalArgumentException("游戏状态不存在"));
+
+        // 执行 UNO 调用逻辑
+        UnoState newState = UnoEngine.callUno(currentState, player.getId());
+        
+        // 更新内存中的游戏状态
+        gameStateManager.updateGameState(matchId, newState);
+        
+        return UnoEngine.publicViewWithUserInfo(newState, player.getId(), getUserInfoMap(newState));
+    }
+
+    @Transactional
+    public Map<String, Object> challengeWildDraw4(long matchId, User challenger) {
+        // 从内存获取游戏会话
+        GameStateManager.GameStateData gameSession = gameStateManager.getGameSession(matchId)
+            .orElseThrow(() -> new IllegalArgumentException("游戏会话不存在"));
+        
+        if (!"playing".equals(gameSession.getStatus())) {
+            throw new IllegalArgumentException("游戏已结束");
+        }
+
+        // 从内存获取游戏状态
+        UnoState currentState = (UnoState) gameStateManager.getGameState(matchId)
+            .orElseThrow(() -> new IllegalArgumentException("游戏状态不存在"));
+
+        // 执行质疑逻辑
+        UnoEngine.ChallengeResult challengeResult = UnoEngine.challengeWildDraw4(currentState, challenger.getId());
+        
+        // 更新内存中的游戏状态
+        gameStateManager.updateGameState(matchId, challengeResult.newState);
+        
+        // 构建返回结果，包含质疑详细信息
+        Map<String, Object> result = new HashMap<>(UnoEngine.publicViewWithUserInfo(challengeResult.newState, challenger.getId(), getUserInfoMap(challengeResult.newState)));
+        result.put("challengeSuccessful", challengeResult.challengeSuccessful);
+        result.put("challengerId", challengeResult.challengerId);
+        result.put("challengedPlayerId", challengeResult.challengedPlayerId);
+        result.put("penaltyCards", challengeResult.penaltyCards);
+        result.put("reason", challengeResult.reason);
+        
+        return result;
+    }
+
+    @Transactional
+    public Map<String, Object> penalizeForgetUno(long matchId, long penalizedPlayerId, User reporter) {
+        // 从内存获取游戏会话
+        GameStateManager.GameStateData gameSession = gameStateManager.getGameSession(matchId)
+            .orElseThrow(() -> new IllegalArgumentException("游戏会话不存在"));
+        
+        if (!"playing".equals(gameSession.getStatus())) {
+            throw new IllegalArgumentException("游戏已结束");
+        }
+
+        // 从内存获取游戏状态
+        UnoState currentState = (UnoState) gameStateManager.getGameState(matchId)
+            .orElseThrow(() -> new IllegalArgumentException("游戏状态不存在"));
+
+        // 执行 UNO 惩罚逻辑
+        UnoEngine.UnoPenaltyResult penaltyResult = UnoEngine.penalizeForgetUno(currentState, penalizedPlayerId);
+        
+        // 更新内存中的游戏状态
+        gameStateManager.updateGameState(matchId, penaltyResult.newState);
+        
+        // 构建返回结果，包含惩罚详细信息
+        Map<String, Object> result = new HashMap<>(UnoEngine.publicViewWithUserInfo(penaltyResult.newState, reporter.getId(), getUserInfoMap(penaltyResult.newState)));
+        result.put("penalizedPlayerId", penaltyResult.penalizedPlayerId);
+        result.put("penaltyCards", penaltyResult.penaltyCards);
+        result.put("reason", penaltyResult.reason);
+        
+        return result;
+    }
+
     /**
      * 获取游戏中所有玩家的用户信息
      */

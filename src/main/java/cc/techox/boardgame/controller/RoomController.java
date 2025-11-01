@@ -95,7 +95,7 @@ public class RoomController {
     public ApiResponse<?> getCurrentMatch(@RequestHeader(name = "Authorization", required = false) String authHeader,
                                           @PathVariable("id") Long roomId) {
         try {
-            User user = AuthUtil.requireAuth(authHeader, authService);
+            AuthUtil.requireAuth(authHeader, authService);
             
             // 获取房间当前对局信息
             Map<String, Object> matchInfo = roomService.getCurrentMatch(roomId);

@@ -46,7 +46,7 @@ public class RoomService {
      */
     public Map<String, Object> getCurrentMatch(Long roomId) {
         // 验证房间是否存在
-        Room room = getRoomById(roomId);
+        getRoomById(roomId);
         
         // 查找房间当前的对局
         Optional<GameStateManager.GameStateData> gameSession = gameStateManager.getGameSessionByRoomId(roomId);
