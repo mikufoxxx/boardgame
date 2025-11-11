@@ -7,6 +7,7 @@ import cc.techox.boardgame.repo.*;
 import cc.techox.boardgame.game.uno.UnoEngine;
 import cc.techox.boardgame.game.uno.UnoState;
 import cc.techox.boardgame.game.uno.UnoCard;
+import cc.techox.boardgame.websocket.GameEventBroadcaster;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ public class UnoService {
     private final UserRepository userRepo;
     private final GameStateManager gameStateManager;
     private final GameDataManager gameDataManager;
+    private final GameEventBroadcaster eventBroadcaster;
     
     // 使用原子递增器生成 matchId，避免 JavaScript 精度问题
     private static final AtomicLong matchIdGenerator = new AtomicLong(1000);
@@ -28,11 +30,13 @@ public class UnoService {
     public UnoService(RoomRepository roomRepo, 
                      UserRepository userRepo,
                      GameStateManager gameStateManager,
-                     GameDataManager gameDataManager) {
+                     GameDataManager gameDataManager,
+                     GameEventBroadcaster eventBroadcaster) {
         this.roomRepo = roomRepo;
         this.userRepo = userRepo;
         this.gameStateManager = gameStateManager;
         this.gameDataManager = gameDataManager;
+        this.eventBroadcaster = eventBroadcaster;
     }
 
     @Transactional
@@ -165,6 +169,18 @@ public class UnoService {
         if (UnoEngine.isGameFinished(newState)) {
             Long winnerId = UnoEngine.getWinner(newState);
             gameStateManager.finishGame(matchId, "finished", winnerId);
+
+            // 游戏结束后，将房间状态更新为 waiting，便于继续下一局
+            Long roomId = gameSession.getRoomId();
+            roomRepo.findById(roomId).ifPresent(room -> {
+                // 仅当不为 waiting 才更新，避免不必要的写入
+                if (room.getStatus() != Room.Status.waiting) {
+                    room.setStatus(Room.Status.waiting);
+                    roomRepo.save(room);
+                }
+                // 广播房间状态变化，便于前端刷新大厅/房间信息
+                eventBroadcaster.broadcastRoomUpdate(roomId);
+            });
         }
         
         return UnoEngine.publicViewWithUserInfo(newState, player.getId(), getUserInfoMap(newState));

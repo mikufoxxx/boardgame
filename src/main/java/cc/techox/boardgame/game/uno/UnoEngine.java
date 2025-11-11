@@ -229,12 +229,13 @@ public class UnoEngine {
                 s.direction = -s.direction;
                 // 在2人游戏中，Reverse相当于Skip
                 if (s.players.size() == 2) {
-                    s.currentIdx = s.nextIndex(1);
+                    // 等同于跳过对手，当前玩家再次行动
+                    s.currentIdx = s.nextIndex(2);
                 }
             }
             case SKIP -> {
                 // Skip直接跳过下一个玩家
-                s.currentIdx = s.nextIndex(1);
+                s.currentIdx = s.nextIndex(2);
             }
             case DRAW2 -> {
                 s.pendingDraw += 2;
@@ -243,6 +244,8 @@ public class UnoEngine {
             }
             case WILD -> {
                 s.forcedColor = normalizeColor(chooseColor);
+                // 万能牌不跳过，正常推进到下一位
+                s.currentIdx = s.nextIndex(1);
             }
             case WILDDRAW4 -> {
                 s.pendingDraw += 4;
